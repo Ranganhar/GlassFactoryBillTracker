@@ -132,7 +132,7 @@
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
                     <TextBlock Text="总金额：" VerticalAlignment="Center" FontWeight="Bold" />
-                    <TextBox Width="130" IsReadOnly="True" Text="{Binding TotalAmount, StringFormat=F4}" Margin="4,0,12,0" />
+                    <TextBox Width="130" IsReadOnly="True" Text="{Binding TotalAmount, Mode=OneWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F4}" Margin="4,0,12,0" />
                     <Button Content="保存(Ctrl+S)" Width="110" Command="{Binding SaveCommand}" Margin="0,0,8,0" />
                     <Button Content="取消" Width="90" Command="{Binding CancelCommand}" />
                 </StackPanel>

@@ -3,6 +3,7 @@ using GlassFactory.BillTracker.Domain.Entities;
 using GlassFactory.BillTracker.Domain.Services;
 using GlassFactory.BillTracker.Infrastructure.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace GlassFactory.BillTracker.App.Services;
 
@@ -17,91 +18,108 @@ public sealed class OrderService : IOrderService
 
     public async Task<OrderListQueryResult> QueryOrdersAsync(OrderQueryFilter filter, CancellationToken cancellationToken = default)
     {
-        await using var db = AppRuntimeContext.CreateDbContext();
-
-        var query = db.Orders
-            .AsNoTracking()
-            .AsQueryable();
-
-        if (filter.CustomerId.HasValue)
+        try
         {
-            query = query.Where(x => x.CustomerId == filter.CustomerId.Value);
-        }
+            await using var db = AppRuntimeContext.CreateDbContext();
 
-        if (filter.StartDate.HasValue)
-        {
-            query = query.Where(x => x.DateTime >= filter.StartDate.Value);
-        }
+            var query = db.Orders
+                .AsNoTracking()
+                .AsQueryable();
 
-        if (filter.EndDate.HasValue)
-        {
-            query = query.Where(x => x.DateTime <= filter.EndDate.Value);
-        }
-
-        if (filter.MinAmount.HasValue)
-        {
-            query = query.Where(x => x.TotalAmount >= filter.MinAmount.Value);
-        }
-
-        if (filter.MaxAmount.HasValue)
-        {
-            query = query.Where(x => x.TotalAmount <= filter.MaxAmount.Value);
-        }
-
-        if (filter.PaymentMethod.HasValue)
-        {
-            query = query.Where(x => x.PaymentMethod == filter.PaymentMethod.Value);
-        }
-
-        if (filter.OrderStatus.HasValue)
-        {
-            query = query.Where(x => x.OrderStatus == filter.OrderStatus.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.Keyword))
-        {
-            var keyword = filter.Keyword.Trim();
-            if (filter.IncludeWireTypeInKeyword)
+            if (filter.CustomerId.HasValue)
             {
-                query = query.Where(x => x.OrderNo.Contains(keyword)
-                                         || (x.Note ?? string.Empty).Contains(keyword)
-                                         || x.Customer.Name.Contains(keyword)
-                                         || x.Items.Any(i => i.WireType.Contains(keyword)));
+                query = query.Where(x => x.CustomerId == filter.CustomerId.Value);
+            }
+
+            if (filter.StartDate.HasValue)
+            {
+                query = query.Where(x => x.DateTime >= filter.StartDate.Value);
+            }
+
+            if (filter.EndDate.HasValue)
+            {
+                query = query.Where(x => x.DateTime <= filter.EndDate.Value);
+            }
+
+            if (filter.MinAmount.HasValue)
+            {
+                query = query.Where(x => x.TotalAmount >= filter.MinAmount.Value);
+            }
+
+            if (filter.MaxAmount.HasValue)
+            {
+                query = query.Where(x => x.TotalAmount <= filter.MaxAmount.Value);
+            }
+
+            if (filter.PaymentMethod.HasValue)
+            {
+                query = query.Where(x => x.PaymentMethod == filter.PaymentMethod.Value);
+            }
+
+            if (filter.OrderStatus.HasValue)
+            {
+                query = query.Where(x => x.OrderStatus == filter.OrderStatus.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Keyword))
+            {
+                var keyword = filter.Keyword.Trim();
+                if (filter.IncludeWireTypeInKeyword)
+                {
+                    query = query.Where(x => x.OrderNo.Contains(keyword)
+                                             || (x.Note ?? string.Empty).Contains(keyword)
+                                             || x.Customer.Name.Contains(keyword)
+                                             || x.Items.Any(i => i.WireType.Contains(keyword)));
+                }
+                else
+                {
+                    query = query.Where(x => x.OrderNo.Contains(keyword)
+                                             || (x.Note ?? string.Empty).Contains(keyword)
+                                             || x.Customer.Name.Contains(keyword));
+                }
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+            decimal sumTotal;
+            if (totalCount == 0)
+            {
+                sumTotal = 0m;
             }
             else
             {
-                query = query.Where(x => x.OrderNo.Contains(keyword)
-                                         || (x.Note ?? string.Empty).Contains(keyword)
-                                         || x.Customer.Name.Contains(keyword));
+                var sumScaled = await query.SumAsync(x => (long)(x.TotalAmount * 10000m), cancellationToken);
+                sumTotal = Math.Round(sumScaled / 10000m, 4, MidpointRounding.AwayFromZero);
             }
-        }
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var sumTotal = totalCount == 0 ? 0m : await query.SumAsync(x => x.TotalAmount, cancellationToken);
+            query = ApplySorting(query, filter.SortBy, filter.SortDescending);
 
-        query = ApplySorting(query, filter.SortBy, filter.SortDescending);
+            var rows = await query
+                .Select(x => new OrderListRowDto
+                {
+                    Id = x.Id,
+                    OrderNo = x.OrderNo,
+                    DateTime = x.DateTime,
+                    CustomerName = x.Customer.Name,
+                    PaymentMethod = x.PaymentMethod,
+                    OrderStatus = x.OrderStatus,
+                    TotalAmount = x.TotalAmount,
+                    Note = x.Note,
+                    AttachmentPath = x.AttachmentPath
+                })
+                .ToListAsync(cancellationToken);
 
-        var rows = await query
-            .Select(x => new OrderListRowDto
+            return new OrderListQueryResult
             {
-                Id = x.Id,
-                OrderNo = x.OrderNo,
-                DateTime = x.DateTime,
-                CustomerName = x.Customer.Name,
-                PaymentMethod = x.PaymentMethod,
-                OrderStatus = x.OrderStatus,
-                TotalAmount = x.TotalAmount,
-                Note = x.Note,
-                AttachmentPath = x.AttachmentPath
-            })
-            .ToListAsync(cancellationToken);
-
-        return new OrderListQueryResult
+                Rows = rows,
+                TotalCount = totalCount,
+                SumTotalAmount = sumTotal
+            };
+        }
+        catch (Exception ex)
         {
-            Rows = rows,
-            TotalCount = totalCount,
-            SumTotalAmount = sumTotal
-        };
+            Log.Error(ex, "查询订单失败");
+            throw new InvalidOperationException("查询订单失败，请稍后重试。", ex);
+        }
     }
 
     public async Task<Order?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default)
