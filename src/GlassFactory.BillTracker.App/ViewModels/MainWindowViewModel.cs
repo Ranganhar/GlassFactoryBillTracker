@@ -243,16 +243,16 @@ public sealed class MainWindowViewModel : ObservableObject
         RefreshCommand = new RelayCommand(() => _ = ApplyFiltersAsync(force: true, showValidationError: true));
         ClearFiltersCommand = new RelayCommand(ClearFilters);
         SearchCommand = new RelayCommand(() => _ = ApplyFiltersAsync(force: true, showValidationError: true));
-        NewOrderCommand = new RelayCommand(() => _ = OpenOrderDialogAsync(null));
-        EditOrderCommand = new RelayCommand(() => _ = EditSelectedOrderAsync(), () => SelectedOrder is not null);
-        DeleteOrderCommand = new RelayCommand(() => _ = DeleteSelectedOrderAsync(), () => SelectedOrder is not null);
-        ExportExcelCommand = new RelayCommand(() => _ = ExportExcelAsync());
-        ExportJsonCommand = new RelayCommand(() => _ = ExportJsonAsync());
+        NewOrderCommand = new RelayCommand(() => ExecuteUiAction(() => OpenOrderDialogAsync(null), "新建订单"));
+        EditOrderCommand = new RelayCommand(() => ExecuteUiAction(EditSelectedOrderAsync, "编辑订单"), () => SelectedOrder is not null);
+        DeleteOrderCommand = new RelayCommand(() => ExecuteUiAction(DeleteSelectedOrderAsync, "删除订单"), () => SelectedOrder is not null);
+        ExportExcelCommand = new RelayCommand(() => ExecuteUiAction(ExportExcelAsync, "导出Excel"));
+        ExportJsonCommand = new RelayCommand(() => ExecuteUiAction(ExportJsonAsync, "导出JSON"));
 
-        AddCustomerCommand = new RelayCommand(() => _ = OpenCustomerDialogAsync(null));
-        EditCustomerCommand = new RelayCommand(() => _ = EditSelectedCustomerAsync());
-        DeleteCustomerCommand = new RelayCommand(() => _ = DeleteSelectedCustomerAsync());
-        SearchCustomersCommand = new RelayCommand(() => _ = LoadCustomersAsync());
+        AddCustomerCommand = new RelayCommand(() => ExecuteUiAction(() => OpenCustomerDialogAsync(null), "新增客户"));
+        EditCustomerCommand = new RelayCommand(() => ExecuteUiAction(EditSelectedCustomerAsync, "编辑客户"));
+        DeleteCustomerCommand = new RelayCommand(() => ExecuteUiAction(DeleteSelectedCustomerAsync, "删除客户"));
+        SearchCustomersCommand = new RelayCommand(() => ExecuteUiAction(LoadCustomersAsync, "客户搜索"));
 
         RemoveChipCommand = new RelayCommand<string>(chipKey =>
         {
@@ -970,5 +970,23 @@ public sealed class MainWindowViewModel : ObservableObject
             Arguments = $"/select,\"{result.FilePath}\"",
             UseShellExecute = true
         });
+    }
+
+    private void ExecuteUiAction(Func<Task> action, string actionName)
+    {
+        _ = ExecuteUiActionAsync(action, actionName);
+    }
+
+    private async Task ExecuteUiActionAsync(Func<Task> action, string actionName)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{ActionName}发生未处理异常", actionName);
+            MessageBox.Show($"{actionName}失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 }
