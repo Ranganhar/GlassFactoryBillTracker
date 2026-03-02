@@ -15,18 +15,18 @@ function Invoke-Step {
     Write-Host "`n==> $Name" -ForegroundColor Cyan
     & $Action
     if ($LASTEXITCODE -ne 0) {
-        throw "步骤失败: $Name"
+        throw "Step failed: $Name"
     }
 }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    throw "未检测到 dotnet SDK。请先安装 .NET 8 SDK: https://dotnet.microsoft.com/download/dotnet/8.0"
+    throw "dotnet SDK not found. Install .NET 8 SDK first: https://dotnet.microsoft.com/download/dotnet/8.0"
 }
 
 $sdkVersion = (& dotnet --version).Trim()
 $sdkMajor = [int]($sdkVersion.Split('.')[0])
 if ($sdkMajor -lt 8) {
-    throw "当前 dotnet SDK 版本为 $sdkVersion，需 .NET 8 或更高版本。"
+    throw "Current dotnet SDK version is $sdkVersion. .NET 8 or later is required."
 }
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -67,12 +67,12 @@ Copy-Item -Path (Join-Path $publishDir "*") -Destination $distDir -Recurse -Forc
 
 $exePath = Join-Path $distDir "GlassFactory.BillTracker.App.exe"
 if (-not (Test-Path $exePath)) {
-    throw "发布完成但未找到 exe：$exePath"
+    throw "Publish completed, but exe not found: $exePath"
 }
 
 $exeSizeMb = [Math]::Round(((Get-Item $exePath).Length / 1MB), 2)
 
-Write-Host "`n发布成功。" -ForegroundColor Green
+Write-Host "`nPublish succeeded." -ForegroundColor Green
 Write-Host "Runtime      : $Runtime"
 Write-Host "Configuration: $Configuration"
 Write-Host "Dist Dir     : $distDir"
