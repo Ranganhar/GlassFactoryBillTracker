@@ -10,6 +10,7 @@ public sealed class CustomerEditViewModel : ObservableObject
     private string? _phone;
     private string? _address;
     private string? _note;
+    private bool _isSaving;
 
     public Guid Id { get; }
 
@@ -40,6 +41,18 @@ public sealed class CustomerEditViewModel : ObservableObject
     public RelayCommand SaveCommand { get; }
     public RelayCommand CancelCommand { get; }
 
+    public bool IsSaving
+    {
+        get => _isSaving;
+        private set
+        {
+            if (SetProperty(ref _isSaving, value))
+            {
+                SaveCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
     public event Action? Saved;
     public event Action? Canceled;
 
@@ -51,8 +64,13 @@ public sealed class CustomerEditViewModel : ObservableObject
         Address = existing?.Address;
         Note = existing?.Note;
 
-        SaveCommand = new RelayCommand(OnSave);
+        SaveCommand = new RelayCommand(OnSave, () => !IsSaving);
         CancelCommand = new RelayCommand(() => Canceled?.Invoke());
+    }
+
+    public void SetSaving(bool isSaving)
+    {
+        IsSaving = isSaving;
     }
 
     public Customer BuildCustomer()
@@ -69,6 +87,11 @@ public sealed class CustomerEditViewModel : ObservableObject
 
     private void OnSave()
     {
+        if (IsSaving)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(Name))
         {
             throw new InvalidOperationException("客户名称不能为空。");

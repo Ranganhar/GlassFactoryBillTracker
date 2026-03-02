@@ -6,6 +6,7 @@ namespace GlassFactory.BillTracker.App.ViewModels.Rows;
 
 public sealed class OrderItemRowViewModel : ObservableObject
 {
+    private Guid _id;
     private decimal _glassLengthMm;
     private decimal _glassWidthMm;
     private int _quantity = 1;
@@ -21,6 +22,12 @@ public sealed class OrderItemRowViewModel : ObservableObject
     public OrderItemRowViewModel(Action? recalculateCallback = null)
     {
         _recalculateCallback = recalculateCallback;
+    }
+
+    public Guid Id
+    {
+        get => _id;
+        set => SetProperty(ref _id, value);
     }
 
     public decimal GlassLengthMm
@@ -123,6 +130,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
     {
         var item = new OrderItem
         {
+            Id = Id,
             GlassLengthMm = GlassLengthMm,
             GlassWidthMm = GlassWidthMm,
             Quantity = Quantity,
@@ -141,6 +149,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
     {
         var row = new OrderItemRowViewModel(recalculateCallback)
         {
+            Id = item.Id,
             GlassLengthMm = item.GlassLengthMm,
             GlassWidthMm = item.GlassWidthMm,
             Quantity = item.Quantity,

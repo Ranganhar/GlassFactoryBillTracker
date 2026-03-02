@@ -28,6 +28,7 @@ public sealed class OrderEditViewModel : ObservableObject
     private string? _attachmentSourcePath;
     private string? _attachmentRelativePath;
     private bool _removeAttachment;
+    private bool _isSaving;
 
     public ObservableCollection<OrderItemRowViewModel> Items { get; } = new();
 
@@ -156,6 +157,18 @@ public sealed class OrderEditViewModel : ObservableObject
     public RelayCommand RemoveSelectedItemCommand { get; }
     public RelayCommand SaveCommand { get; }
     public RelayCommand CancelCommand { get; }
+    public bool IsSaving
+    {
+        get => _isSaving;
+        private set
+        {
+            if (SetProperty(ref _isSaving, value))
+            {
+                SaveCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
     public RelayCommand ChooseAttachmentCommand { get; }
     public RelayCommand RemoveAttachmentCommand { get; }
 
@@ -204,7 +217,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
         AddItemCommand = new RelayCommand(AddItem);
         RemoveSelectedItemCommand = new RelayCommand(RemoveSelectedItem);
-        SaveCommand = new RelayCommand(OnSave);
+        SaveCommand = new RelayCommand(OnSave, () => !IsSaving);
         CancelCommand = new RelayCommand(() => Canceled?.Invoke());
         ChooseAttachmentCommand = new RelayCommand(() => SelectAttachmentRequested?.Invoke());
         RemoveAttachmentCommand = new RelayCommand(RemoveAttachmentAction);
@@ -238,6 +251,11 @@ public sealed class OrderEditViewModel : ObservableObject
     public IReadOnlyList<OrderItem> BuildItems()
     {
         return Items.Select(x => x.ToEntity()).ToList();
+    }
+
+    public void SetSaving(bool isSaving)
+    {
+        IsSaving = isSaving;
     }
 
     private void AddItem()
@@ -287,6 +305,11 @@ public sealed class OrderEditViewModel : ObservableObject
 
     private void OnSave()
     {
+        if (IsSaving)
+        {
+            return;
+        }
+
         if (SelectedCustomer is null)
         {
             throw new InvalidOperationException("必须选择客户。");

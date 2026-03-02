@@ -658,10 +658,19 @@ public sealed class MainWindowViewModel : ObservableObject
                 DataContext = vm
             };
 
+            var isSaving = false;
+
             vm.Saved += async () =>
             {
+                if (isSaving)
+                {
+                    return;
+                }
+
                 try
                 {
+                    isSaving = true;
+                    vm.SetSaving(true);
                     await _customerService.SaveAsync(vm.BuildCustomer());
                     window.DialogResult = true;
                     window.Close();
@@ -670,6 +679,14 @@ public sealed class MainWindowViewModel : ObservableObject
                 {
                     Log.Error(ex, "保存客户失败");
                     MessageBox.Show($"保存客户失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                finally
+                {
+                    if (window.IsVisible)
+                    {
+                        isSaving = false;
+                        vm.SetSaving(false);
+                    }
                 }
             };
 
@@ -731,6 +748,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 DataContext = vm
             };
 
+            var isSaving = false;
+
             vm.SelectAttachmentRequested += () =>
             {
                 var dialog = new Microsoft.Win32.OpenFileDialog
@@ -747,8 +766,15 @@ public sealed class MainWindowViewModel : ObservableObject
 
             vm.Saved += async () =>
             {
+                if (isSaving)
+                {
+                    return;
+                }
+
                 try
                 {
+                    isSaving = true;
+                    vm.SetSaving(true);
                     var model = vm.BuildModel();
                     var saved = await _orderService.SaveAsync(model, vm.BuildItems(), vm.AttachmentSourcePath, vm.RemoveAttachment);
                     vm.AttachmentRelativePath = saved.AttachmentPath;
@@ -760,6 +786,14 @@ public sealed class MainWindowViewModel : ObservableObject
                 {
                     Log.Error(ex, "保存订单失败");
                     MessageBox.Show($"保存订单失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                finally
+                {
+                    if (window.IsVisible)
+                    {
+                        isSaving = false;
+                        vm.SetSaving(false);
+                    }
                 }
             };
 

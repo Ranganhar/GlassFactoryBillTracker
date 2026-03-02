@@ -192,9 +192,35 @@ public sealed class OrderService : IOrderService
                     ? await GenerateOrderNoAsync(orderModel.DateTime, cancellationToken)
                     : orderModel.OrderNo,
                 CreatedAt = now,
-                UpdatedAt = now
+                UpdatedAt = now,
+                DateTime = orderModel.DateTime,
+                CustomerId = orderModel.CustomerId.Value,
+                PaymentMethod = orderModel.PaymentMethod,
+                OrderStatus = orderModel.OrderStatus,
+                Note = orderModel.Note
             };
 
+            foreach (var item in items)
+            {
+                var newItem = new OrderItem
+                {
+                    Id = item.Id == Guid.Empty ? Guid.NewGuid() : item.Id,
+                    OrderId = entity.Id,
+                    GlassLengthMm = item.GlassLengthMm,
+                    GlassWidthMm = item.GlassWidthMm,
+                    Quantity = item.Quantity,
+                    GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
+                    WireType = item.WireType,
+                    WireUnitPrice = item.WireUnitPrice,
+                    OtherFee = item.OtherFee,
+                    Note = item.Note
+                };
+
+                OrderAmountCalculator.ApplyLineAmount(newItem);
+                entity.Items.Add(newItem);
+            }
+
+            entity.TotalAmount = OrderAmountCalculator.CalculateOrderTotal(entity.Items);
             await db.Orders.AddAsync(entity, cancellationToken);
         }
         else
@@ -202,42 +228,76 @@ public sealed class OrderService : IOrderService
             entity = await db.Orders
                 .Include(x => x.Items)
                 .FirstOrDefaultAsync(x => x.Id == orderModel.Id, cancellationToken)
-                ?? throw new InvalidOperationException("订单不存在。");
+                ?? throw new InvalidOperationException("订单不存在。可能已被删除，请刷新后重试。");
 
+            entity.DateTime = orderModel.DateTime;
+            entity.CustomerId = orderModel.CustomerId.Value;
+            entity.PaymentMethod = orderModel.PaymentMethod;
+            entity.OrderStatus = orderModel.OrderStatus;
+            entity.Note = orderModel.Note;
             entity.UpdatedAt = now;
-        }
 
-        entity.DateTime = orderModel.DateTime;
-        entity.CustomerId = orderModel.CustomerId.Value;
-        entity.PaymentMethod = orderModel.PaymentMethod;
-        entity.OrderStatus = orderModel.OrderStatus;
-        entity.Note = orderModel.Note;
+            var existingItemById = entity.Items.ToDictionary(x => x.Id, x => x);
+            var touchedIds = new HashSet<Guid>();
 
-        db.OrderItems.RemoveRange(entity.Items);
-        entity.Items.Clear();
-
-        foreach (var item in items)
-        {
-            var newItem = new OrderItem
+            foreach (var item in items)
             {
-                Id = Guid.NewGuid(),
-                OrderId = entity.Id,
-                GlassLengthMm = item.GlassLengthMm,
-                GlassWidthMm = item.GlassWidthMm,
-                Quantity = item.Quantity,
-                GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
-                WireType = item.WireType,
-                WireUnitPrice = item.WireUnitPrice,
-                OtherFee = item.OtherFee,
-                Note = item.Note
-            };
+                if (item.Id != Guid.Empty && existingItemById.TryGetValue(item.Id, out var trackedItem))
+                {
+                    trackedItem.GlassLengthMm = item.GlassLengthMm;
+                    trackedItem.GlassWidthMm = item.GlassWidthMm;
+                    trackedItem.Quantity = item.Quantity;
+                    trackedItem.GlassUnitPricePerM2 = item.GlassUnitPricePerM2;
+                    trackedItem.WireType = item.WireType;
+                    trackedItem.WireUnitPrice = item.WireUnitPrice;
+                    trackedItem.OtherFee = item.OtherFee;
+                    trackedItem.Note = item.Note;
+                    OrderAmountCalculator.ApplyLineAmount(trackedItem);
+                    touchedIds.Add(trackedItem.Id);
+                    continue;
+                }
 
-            OrderAmountCalculator.ApplyLineAmount(newItem);
-            entity.Items.Add(newItem);
+                var newItem = new OrderItem
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = entity.Id,
+                    GlassLengthMm = item.GlassLengthMm,
+                    GlassWidthMm = item.GlassWidthMm,
+                    Quantity = item.Quantity,
+                    GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
+                    WireType = item.WireType,
+                    WireUnitPrice = item.WireUnitPrice,
+                    OtherFee = item.OtherFee,
+                    Note = item.Note
+                };
+
+                OrderAmountCalculator.ApplyLineAmount(newItem);
+                entity.Items.Add(newItem);
+                touchedIds.Add(newItem.Id);
+            }
+
+            var removedItems = entity.Items.Where(x => !touchedIds.Contains(x.Id)).ToList();
+            if (removedItems.Count > 0)
+            {
+                db.OrderItems.RemoveRange(removedItems);
+                foreach (var removedItem in removedItems)
+                {
+                    entity.Items.Remove(removedItem);
+                }
+            }
+
+            entity.TotalAmount = OrderAmountCalculator.CalculateOrderTotal(entity.Items);
         }
 
-        entity.TotalAmount = OrderAmountCalculator.CalculateOrderTotal(entity.Items);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            Log.Error(ex, "保存订单发生并发冲突，OrderId={OrderId}, OrderNo={OrderNo}", orderModel.Id, orderModel.OrderNo);
+            throw new InvalidOperationException("订单已被修改或删除，请刷新后重试。", ex);
+        }
 
         if (removeAttachment)
         {
@@ -316,7 +376,7 @@ public sealed class OrderService : IOrderService
             "CustomerName" => desc ? query.OrderByDescending(x => x.Customer.Name) : query.OrderBy(x => x.Customer.Name),
             "PaymentMethod" => desc ? query.OrderByDescending(x => x.PaymentMethod) : query.OrderBy(x => x.PaymentMethod),
             "OrderStatus" => desc ? query.OrderByDescending(x => x.OrderStatus) : query.OrderBy(x => x.OrderStatus),
-            "TotalAmount" => desc ? query.OrderByDescending(x => x.TotalAmount) : query.OrderBy(x => x.TotalAmount),
+            "TotalAmount" => desc ? query.OrderByDescending(x => (double)x.TotalAmount) : query.OrderBy(x => (double)x.TotalAmount),
             "Note" => desc ? query.OrderByDescending(x => x.Note) : query.OrderBy(x => x.Note),
             _ => desc ? query.OrderByDescending(x => x.DateTime) : query.OrderBy(x => x.DateTime)
         };
