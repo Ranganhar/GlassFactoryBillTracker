@@ -1,107 +1,81 @@
 Param(
     [string]$DataDir = "",
-    [string]$OutDir = ""
+    [string]$OutputDir = ""
 )
 
 $ErrorActionPreference = "Stop"
 
-function Ensure-Dir {
-    param([string]$Path)
-    if (-not (Test-Path $Path)) {
-        New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    }
-}
-
-function Append-FileIfExists {
-    param(
-        [string]$Source,
-        [string]$Destination
-    )
-
-    if (Test-Path $Source) {
-        Add-Content -Path $Destination -Value ("`n===== FILE: " + $Source + " =====`n")
-        Get-Content -Path $Source -Raw | Add-Content -Path $Destination
-    }
-}
-
 $root = Split-Path -Parent $PSScriptRoot
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-if ([string]::IsNullOrWhiteSpace($OutDir)) {
-    $OutDir = Join-Path $root "artifacts/repro/$timestamp"
-}
-Ensure-Dir $OutDir
-
-$envFile = Join-Path $OutDir "env.txt"
-$settingsCopyPath = Join-Path $OutDir "settings.json.copy"
-$settingsMeta = Join-Path $OutDir "settings_path.txt"
-$appLogDump = Join-Path $OutDir "app_logs_combined.txt"
-$crashLogDump = Join-Path $OutDir "crash_logs_combined.txt"
-$eventLogDump = Join-Path $OutDir "eventlog_application.txt"
-
-$settingsPath = Join-Path $env:APPDATA "GlassFactoryBillTracker/settings.json"
-$emergencyLogDir = Join-Path $env:TEMP "GlassFactoryBillTracker/logs"
 
 if ([string]::IsNullOrWhiteSpace($DataDir)) {
-    if (Test-Path $settingsPath) {
-        try {
-            $settings = Get-Content -Path $settingsPath -Raw | ConvertFrom-Json
-            if ($settings -and $settings.DataDirectory) {
-                $DataDir = $settings.DataDirectory
-            }
-        }
-        catch {
-        }
+    $DataDir = Join-Path $env:LOCALAPPDATA "GlassFactory.BillTracker"
+}
+
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = Join-Path $root "artifacts/repro"
+}
+
+New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$stagingDir = Join-Path $OutputDir "collect_$timestamp"
+$zipPath = Join-Path $OutputDir "billtracker_logs_$timestamp.zip"
+
+if (Test-Path $stagingDir) {
+    Remove-Item $stagingDir -Recurse -Force
+}
+New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+Write-Host "DataDir   : $DataDir" -ForegroundColor Cyan
+Write-Host "OutputDir : $OutputDir" -ForegroundColor Cyan
+
+if (-not (Test-Path $DataDir)) {
+    throw "Data directory not found: $DataDir"
+}
+
+$pathsToCopy = @(
+    "logs",
+    "exports",
+    "attachments",
+    "billtracker.db"
+)
+
+foreach ($item in $pathsToCopy) {
+    $source = Join-Path $DataDir $item
+    if (Test-Path $source) {
+        $dest = Join-Path $stagingDir $item
+        Copy-Item -Path $source -Destination $dest -Recurse -Force
+        Write-Host "Collected: $item" -ForegroundColor Green
+    }
+    else {
+        Write-Host "Skipped (not found): $item" -ForegroundColor Yellow
     }
 }
 
-"Timestamp=$timestamp" | Set-Content $envFile
-"OS=$([System.Environment]::OSVersion.VersionString)" | Add-Content $envFile
-"DotnetVersion=$(& dotnet --version 2>$null)" | Add-Content $envFile
-"ProcessArchitecture=$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)" | Add-Content $envFile
-"OSArchitecture=$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)" | Add-Content $envFile
-"Timezone=$((Get-TimeZone).Id)" | Add-Content $envFile
-"DataDir=$DataDir" | Add-Content $envFile
+$envInfoPath = Join-Path $stagingDir "environment.txt"
+$sysInfoPath = Join-Path $stagingDir "systeminfo.txt"
+
+@(
+    "Timestamp: $(Get-Date -Format o)",
+    "Machine: $env:COMPUTERNAME",
+    "User: $env:USERNAME",
+    "OS: $([System.Environment]::OSVersion.VersionString)",
+    "PowerShell: $($PSVersionTable.PSVersion)",
+    "DataDir: $DataDir"
+) | Set-Content -Path $envInfoPath -Encoding UTF8
 
 try {
-    $commit = (& git -C $root rev-parse HEAD 2>$null).Trim()
-    if ([string]::IsNullOrWhiteSpace($commit)) { $commit = "N/A" }
-    "Commit=$commit" | Add-Content $envFile
+    systeminfo | Set-Content -Path $sysInfoPath -Encoding UTF8
 }
 catch {
-    "Commit=N/A" | Add-Content $envFile
+    "systeminfo command failed: $($_.Exception.Message)" | Set-Content -Path $sysInfoPath -Encoding UTF8
 }
 
-"SettingsPath=$settingsPath" | Set-Content $settingsMeta
-if (Test-Path $settingsPath) {
-    Copy-Item $settingsPath $settingsCopyPath -Force
+if (Test-Path $zipPath) {
+    Remove-Item $zipPath -Force
 }
 
-# Collect app logs
-"" | Set-Content $appLogDump
-"" | Set-Content $crashLogDump
+Compress-Archive -Path (Join-Path $stagingDir "*") -DestinationPath $zipPath -Force
 
-Get-ChildItem -Path $emergencyLogDir -Filter "app*.log" -File -ErrorAction SilentlyContinue |
-    ForEach-Object { Append-FileIfExists -Source $_.FullName -Destination $appLogDump }
-Get-ChildItem -Path $emergencyLogDir -Filter "crash*.log" -File -ErrorAction SilentlyContinue |
-    ForEach-Object { Append-FileIfExists -Source $_.FullName -Destination $crashLogDump }
-
-if (-not [string]::IsNullOrWhiteSpace($DataDir)) {
-    $dataLogDir = Join-Path $DataDir "logs"
-
-    Get-ChildItem -Path $dataLogDir -Filter "app*.log" -File -ErrorAction SilentlyContinue |
-        ForEach-Object { Append-FileIfExists -Source $_.FullName -Destination $appLogDump }
-    Get-ChildItem -Path $dataLogDir -Filter "crash*.log" -File -ErrorAction SilentlyContinue |
-        ForEach-Object { Append-FileIfExists -Source $_.FullName -Destination $crashLogDump }
-}
-
-# Collect event logs
-$events = Get-WinEvent -LogName Application -MaxEvents 200 -ErrorAction SilentlyContinue |
-    Where-Object {
-        $_.ProviderName -match "\.NET Runtime|Application Error" -or
-        $_.Message -match "GlassFactory\.BillTracker\.App|FORCED_CRASH_TEST"
-    } |
-    Select-Object -First 50 TimeCreated, Id, LevelDisplayName, ProviderName, Message
-
-$events | Format-List | Out-File -FilePath $eventLogDump -Encoding UTF8
-
-Write-Host "收集完成：$OutDir" -ForegroundColor Green
+Write-Host "Archive created: $zipPath" -ForegroundColor Green
+Write-Host "Done." -ForegroundColor Green
