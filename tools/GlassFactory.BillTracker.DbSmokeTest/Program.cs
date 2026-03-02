@@ -31,7 +31,7 @@ var customer = new Customer
 
 var order = new Order
 {
-    OrderNo = $"{DateTime.Now:yyyyMMdd}-0001",
+    OrderNo = BuildUniqueSmokeOrderNo(),
     DateTime = DateTime.Now,
     Customer = customer,
     PaymentMethod = PaymentMethod.现金,
@@ -92,3 +92,10 @@ if (savedOrder.TotalAmount != expected)
 }
 
 Console.WriteLine("SMOKE_TEST_PASS");
+
+static string BuildUniqueSmokeOrderNo()
+{
+    var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+    var suffix = Guid.NewGuid().ToString("N")[..8];
+    return $"SMOKE-{timestamp}-{suffix}";
+}

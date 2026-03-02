@@ -141,11 +141,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1 -Configurat
 powershell -ExecutionPolicy Bypass -File .\scripts\publish_smoke_check.ps1
 ```
 
+默认行为（idempotent）：
+- 脚本每次运行都会自动生成唯一临时 DataDir（位于 `%TEMP%`）
+- 可重复执行，不会因为历史 smoke 数据导致 `Orders.OrderNo` 唯一约束冲突
+- 脚本会在输出中打印本次实际使用的 DataDir
+
 可选：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\publish_smoke_check.ps1 -Runtime win-arm64 -DataDir D:\BillTrackerSmoke
 ```
+
+说明：如果显式传入 `-DataDir`，则使用该固定目录。
 
 ## 8. 使用指南（最短路径）
 1. 启动应用并选择 data_dir

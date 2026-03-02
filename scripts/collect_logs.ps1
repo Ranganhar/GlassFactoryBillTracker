@@ -3,7 +3,11 @@ Param(
     [string]$OutputDir = ""
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $root = Split-Path -Parent $PSScriptRoot
 

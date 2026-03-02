@@ -4,7 +4,11 @@ Param(
     [string]$DataDir = ""
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $root = Split-Path -Parent $PSScriptRoot
 $exePath = Join-Path $root "dist/$Runtime/GlassFactory.BillTracker.App.exe"
@@ -14,7 +18,8 @@ if (-not (Test-Path $exePath)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($DataDir)) {
-    $DataDir = Join-Path $env:TEMP "GlassFactoryBillTracker_PublishSmoke"
+    $runId = "{0:yyyyMMdd-HHmmss}-{1}" -f (Get-Date), ([Guid]::NewGuid().ToString("N").Substring(0, 8))
+    $DataDir = Join-Path $env:TEMP ("GlassFactoryBillTracker_PublishSmoke_{0}" -f $runId)
 }
 
 Write-Host "Detected EXE: $exePath" -ForegroundColor Green
