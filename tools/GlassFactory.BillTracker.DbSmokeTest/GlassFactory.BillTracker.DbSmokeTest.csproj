@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GlassFactory.BillTracker.Domain\GlassFactory.BillTracker.Domain.csproj" />
+    <ProjectReference Include="..\..\src\GlassFactory.BillTracker.Data\GlassFactory.BillTracker.Data.csproj" />
+  </ItemGroup>
+</Project>

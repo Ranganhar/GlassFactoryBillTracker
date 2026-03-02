@@ -1,0 +1,43 @@
+<Window x:Class="GlassFactory.BillTracker.App.Views.CustomerEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="客户编辑"
+        Width="500"
+        Height="420"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="80" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="名称*" />
+        <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="电话" />
+        <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="地址" />
+        <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Text="{Binding Address, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Top" Text="备注" />
+        <TextBox Grid.Row="3" Grid.Column="1"
+                 AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto"
+                 TextWrapping="Wrap"
+                 Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" />
+
+        <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="保存" Width="90" Command="{Binding SaveCommand}" Margin="0,0,8,0" />
+            <Button Content="取消" Width="90" Command="{Binding CancelCommand}" />
+        </StackPanel>
+    </Grid>
+</Window>

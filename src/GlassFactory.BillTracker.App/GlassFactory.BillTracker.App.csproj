@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>GlassFactory.BillTracker.App</RootNamespace>
+    <AssemblyName>GlassFactory.BillTracker.App</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GlassFactory.BillTracker.Domain\GlassFactory.BillTracker.Domain.csproj" />
+    <ProjectReference Include="..\GlassFactory.BillTracker.Infrastructure\GlassFactory.BillTracker.Infrastructure.csproj" />
+    <ProjectReference Include="..\GlassFactory.BillTracker.Data\GlassFactory.BillTracker.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Settings.Configuration" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+</Project>
