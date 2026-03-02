@@ -1,9 +1,11 @@
 # 夹丝玻璃加工厂离线管理系统
 
 ## 1. 项目简介
+
 本项目是一个面向夹丝玻璃加工厂的离线桌面系统，用于客户、订单、账单与导出管理。
 
 核心目标：
+
 - 在本地稳定运行（SQLite 单文件）
 - 提供订单明细级金额计算（mm -> ㎡）
 - 提供可组合筛选与快速查询
@@ -11,6 +13,7 @@
 - 提供 Windows 一键发布与验收链路
 
 ## 2. 功能清单
+
 - 客户管理
   - 新增、编辑、删除客户
   - 删除存在订单的客户会被阻止（Restrict）
@@ -34,6 +37,7 @@
   - 自动创建 billtracker.db / attachments / exports / logs
 
 ## 3. 技术栈与架构
+
 - 技术栈
   - .NET 8
   - WPF（Windows Desktop）
@@ -72,12 +76,13 @@
 ```
 
 ## 5. 金额计算规则（MVP 固定规则）
+
 - 输入单位
   - 长宽：mm
   - 玻璃单价：元/㎡
 - 公式
-  - 面积(㎡) = (LengthMm / 1000m) * (WidthMm / 1000m)
-  - 玻璃费用 = AreaM2 * Quantity * GlassUnitPricePerM2
+  - 面积(㎡) = (LengthMm / 1000m) \* (WidthMm / 1000m)
+  - 玻璃费用 = AreaM2 _Quantity_ GlassUnitPricePerM2
   - 行金额 = 玻璃费用 + WireUnitPrice + OtherFee
   - 订单总额 = Sum(LineAmount)
 - 精度
@@ -85,27 +90,34 @@
   - 统一 Math.Round(x, 4, MidpointRounding.AwayFromZero)
 
 示例：
+
 - 明细 A 行金额 = 223.3819
 - 明细 B 行金额 = 362.5551
 - 订单总额 = 585.9370
 
 ## 6. 数据存储说明
+
 ### 6.1 data_dir 选择流程
+
 1. 首次启动弹窗选择 data_dir（建议 D/E 盘）
 2. 若选择 C 盘会提示风险，但允许确认
 3. 选择结果保存后，下次启动自动复用
 
 ### 6.2 设置文件位置
+
 - %APPDATA%/GlassFactoryBillTracker/settings.json
 
 ### 6.3 data_dir 目录结构
+
 - billtracker.db
 - attachments/
 - exports/
 - logs/（app.log）
 
 ## 7. Windows 运行与发布
+
 ### 7.1 一键发布
+
 在仓库根目录执行：
 
 ```powershell
@@ -120,6 +132,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1 -Configurat
 ```
 
 脚本会自动执行：
+
 - SDK 版本检查（要求 .NET 8+）
 - restore / build / test
 - publish（单文件 + self-contained + 不裁剪）
@@ -127,10 +140,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1 -Configurat
 - 输出 exe 路径与文件大小
 
 ### 7.2 固定产物路径
+
 - dist/win-x64/GlassFactory.BillTracker.App.exe
 - dist/win-arm64/GlassFactory.BillTracker.App.exe
 
 ### 7.3 首次运行注意事项
+
 - 首次启动会要求选择 data_dir
 - 建议使用 D:\BillTrackerData 或 E:\BillTrackerData
 - 不建议长期放在系统盘根目录
@@ -142,6 +157,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish_smoke_check.ps1
 ```
 
 默认行为（idempotent）：
+
 - 脚本每次运行都会自动生成唯一临时 DataDir（位于 `%TEMP%`）
 - 可重复执行，不会因为历史 smoke 数据导致 `Orders.OrderNo` 唯一约束冲突
 - 脚本会在输出中打印本次实际使用的 DataDir
@@ -155,6 +171,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish_smoke_check.ps1 -Runt
 说明：如果显式传入 `-DataDir`，则使用该固定目录。
 
 ## 8. 使用指南（最短路径）
+
 1. 启动应用并选择 data_dir
 2. 左侧新增客户
 3. 点击新建订单，添加明细并保存
@@ -162,12 +179,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish_smoke_check.ps1 -Runt
 5. 点击导出 Excel，生成报表
 
 ## 9. 导出说明
+
 ### 9.1 Excel（.xlsx）
+
 - 文件名默认：GlassFactoryBillTracker_Orders_yyyyMMdd_HHmmss.xlsx
 - 默认目录：data_dir/exports
 - 可另存为任意路径
 
 Sheet: Orders（字段顺序）
+
 1. 订单号 OrderNo
 2. 日期时间 DateTime
 3. 客户 CustomerName
@@ -178,6 +198,7 @@ Sheet: Orders（字段顺序）
 8. 附件 AttachmentPath
 
 Sheet: OrderItems（字段顺序）
+
 1. 订单号 OrderNo
 2. 长(mm) GlassLengthMm
 3. 宽(mm) GlassWidthMm
@@ -192,6 +213,7 @@ Sheet: OrderItems（字段顺序）
 12. 备注 Note
 
 格式规则：
+
 - 表头加粗
 - 冻结首行
 - 自动筛选
@@ -200,6 +222,7 @@ Sheet: OrderItems（字段顺序）
 - Orders 底部有合计行
 
 ### 9.2 JSON（Orders）
+
 - 文件名默认：GlassFactoryBillTracker_Orders_yyyyMMdd_HHmmss.json
 - 导出范围与当前筛选一致
 
@@ -221,6 +244,7 @@ Sheet: OrderItems（字段顺序）
 ```
 
 ## 10. 测试与质量保证
+
 ### 10.1 运行测试
 
 ```bash
@@ -228,6 +252,7 @@ dotnet test tests/GlassFactory.BillTracker.Tests/GlassFactory.BillTracker.Tests.
 ```
 
 ### 10.2 核心测试用例
+
 - OrderAmountCalculatorTests
   - 验证 mm -> ㎡、4 位小数、AwayFromZero
   - 验证多明细 LineAmount 与 TotalAmount
@@ -248,6 +273,7 @@ dotnet run --project tools/GlassFactory.BillTracker.DbSmokeTest/GlassFactory.Bil
 预期包含：SMOKE_TEST_PASS
 
 ## 11. 常见问题排查
+
 - PowerShell 脚本无法执行
   - 使用 ExecutionPolicy Bypass 参数执行脚本
 - SmartScreen 拦截 EXE
@@ -262,6 +288,7 @@ dotnet run --project tools/GlassFactory.BillTracker.DbSmokeTest/GlassFactory.Bil
   - 检查 data_dir 路径、日志文件 logs/app.log、数据库权限
 
 ## 12. 未来扩展规划
+
 - 多附件 UI 与批量上传（当前已预留 IAttachmentService 与 OrderAttachments）
 - 大数据量分页与虚拟滚动
 - 增加 PaidAmount 并自动推导订单状态
@@ -269,6 +296,7 @@ dotnet run --project tools/GlassFactory.BillTracker.DbSmokeTest/GlassFactory.Bil
 - 审计日志、操作人、多角色权限
 
 ## 13. 发布验收清单（最终交付）
+
 1. 执行 scripts/build_windows.ps1 成功
 2. dist/win-x64/GlassFactory.BillTracker.App.exe 存在
 3. 执行 scripts/publish_smoke_check.ps1 输出 SMOKE_TEST_PASS
