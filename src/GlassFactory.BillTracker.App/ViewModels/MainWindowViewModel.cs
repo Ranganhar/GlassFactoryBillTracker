@@ -30,6 +30,10 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private string _sortBy = "DateTime";
     private bool _sortDescending = true;
+    private bool _updatingSelection;
+    private int _selectedOrderCount;
+
+    public HashSet<Guid> SelectedOrderIds { get; } = new();
 
     public ObservableCollection<CustomerListItemViewModel> Customers { get; } = new();
     public ObservableCollection<OrderListItemViewModel> Orders { get; } = new();
@@ -211,6 +215,12 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public string ResultSummaryText => $"共 {ResultCount} 条订单，合计金额 SumTotal={ResultTotalAmount:F4}";
 
+    public int SelectedOrderCount
+    {
+        get => _selectedOrderCount;
+        private set => SetProperty(ref _selectedOrderCount, value);
+    }
+
     public RelayCommand RefreshCommand { get; }
     public RelayCommand ClearFiltersCommand { get; }
     public RelayCommand SearchCommand { get; }
@@ -219,6 +229,10 @@ public sealed class MainWindowViewModel : ObservableObject
     public RelayCommand DeleteOrderCommand { get; }
     public RelayCommand ExportExcelCommand { get; }
     public RelayCommand ExportJsonCommand { get; }
+    public RelayCommand SelectAllOrdersCommand { get; }
+    public RelayCommand ClearOrderSelectionCommand { get; }
+    public RelayCommand ExportSelectedCommand { get; }
+    public RelayCommand PrintSelectedCommand { get; }
 
     public RelayCommand AddCustomerCommand { get; }
     public RelayCommand EditCustomerCommand { get; }
@@ -246,8 +260,12 @@ public sealed class MainWindowViewModel : ObservableObject
         NewOrderCommand = new RelayCommand(() => ExecuteUiAction(() => OpenOrderDialogAsync(null), "新建订单"));
         EditOrderCommand = new RelayCommand(() => ExecuteUiAction(EditSelectedOrderAsync, "编辑订单"), () => SelectedOrder is not null);
         DeleteOrderCommand = new RelayCommand(() => ExecuteUiAction(DeleteSelectedOrderAsync, "删除订单"), () => SelectedOrder is not null);
-        ExportExcelCommand = new RelayCommand(() => ExecuteUiAction(ExportExcelAsync, "导出Excel"));
+        ExportExcelCommand = new RelayCommand(() => ExecuteUiAction(() => ExportExcelAsync(exportSelectedOnly: false), "导出Excel"));
         ExportJsonCommand = new RelayCommand(() => ExecuteUiAction(ExportJsonAsync, "导出JSON"));
+        SelectAllOrdersCommand = new RelayCommand(SelectAllCurrentResult);
+        ClearOrderSelectionCommand = new RelayCommand(ClearSelection);
+        ExportSelectedCommand = new RelayCommand(() => ExecuteUiAction(() => ExportExcelAsync(exportSelectedOnly: true), "导出选中订单"), () => SelectedOrderIds.Count > 0);
+        PrintSelectedCommand = new RelayCommand(() => ExecuteUiAction(PrintSelectedAsync, "打印选中订单"), () => SelectedOrderIds.Count > 0);
 
         AddCustomerCommand = new RelayCommand(() => ExecuteUiAction(() => OpenCustomerDialogAsync(null), "新增客户"));
         EditCustomerCommand = new RelayCommand(() => ExecuteUiAction(EditSelectedCustomerAsync, "编辑客户"));
@@ -335,11 +353,13 @@ public sealed class MainWindowViewModel : ObservableObject
             _lastFilterSignature = signature;
             Orders.Clear();
 
+            _updatingSelection = true;
             foreach (var row in result.Rows)
             {
-                Orders.Add(new OrderListItemViewModel
+                var rowVm = new OrderListItemViewModel
                 {
                     Id = row.Id,
+                    IsSelected = SelectedOrderIds.Contains(row.Id),
                     OrderNo = row.OrderNo,
                     DateTime = row.DateTime,
                     CustomerName = row.CustomerName,
@@ -348,8 +368,13 @@ public sealed class MainWindowViewModel : ObservableObject
                     TotalAmount = row.TotalAmount,
                     Note = row.Note,
                     AttachmentPath = row.AttachmentPath
-                });
+                };
+
+                rowVm.SelectionChangedCallback = OnOrderSelectionChanged;
+                Orders.Add(rowVm);
             }
+            _updatingSelection = false;
+            UpdateSelectionSummary();
 
             ResultCount = result.TotalCount;
             ResultTotalAmount = result.SumTotalAmount;
@@ -845,6 +870,8 @@ public sealed class MainWindowViewModel : ObservableObject
         try
         {
             await _orderService.DeleteAsync(toDeleteId);
+            SelectedOrderIds.Remove(toDeleteId);
+            UpdateSelectionSummary();
             await ApplyFiltersAsync(force: true, showValidationError: false);
         }
         catch (Exception ex)
@@ -897,7 +924,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    private async Task ExportExcelAsync()
+    private async Task ExportExcelAsync(bool exportSelectedOnly)
     {
         try
         {
@@ -906,23 +933,64 @@ public sealed class MainWindowViewModel : ObservableObject
                 return;
             }
 
+            var customers = await _customerService.GetCustomersAsync();
+            var customerLookup = new List<(Guid? Value, string DisplayName)> { (null, "全部客户") };
+            customerLookup.AddRange(customers.Select(x => ((Guid?)x.Id, x.Name)));
+
             var defaultDir = Path.Combine(AppRuntimeContext.DataDir, "exports");
             Directory.CreateDirectory(defaultDir);
-            var defaultFileName = $"GlassFactoryBillTracker_Orders_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            var defaultPath = Path.Combine(defaultDir, $"BillTracker_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx");
 
-            var path = _fileDialogService.SelectSaveFilePath(
-                "导出 Excel",
-                "Excel 文件 (*.xlsx)|*.xlsx",
-                ".xlsx",
-                defaultDir,
-                defaultFileName);
+            var dialog = new ExportExcelWindow(
+                customerLookup,
+                SelectedOrderIds.Count,
+                defaultPath,
+                _fileDialogService,
+                exportSelectedOnly)
+            {
+                Owner = Application.Current.MainWindow
+            };
 
-            if (string.IsNullOrWhiteSpace(path))
+            if (dialog.ShowDialog() != true || dialog.Options is null)
             {
                 return;
             }
 
-            var result = await _exportService.ExportExcelAsync(ToExportFilter(filter), AppRuntimeContext.DataDir, path);
+            var options = dialog.Options;
+            if (options.UseSelectedOrders || exportSelectedOnly)
+            {
+                if (SelectedOrderIds.Count == 0)
+                {
+                    MessageBox.Show("当前没有勾选订单，无法导出选中订单。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                filter.SelectedOrderIds = SelectedOrderIds.ToList();
+                filter.CustomerId = null;
+                filter.StartDate = null;
+                filter.EndDate = null;
+            }
+            else
+            {
+                filter.SelectedOrderIds = null;
+
+                if (options.UseDateRange)
+                {
+                    filter.StartDate = options.StartDate;
+                    filter.EndDate = options.EndDate;
+                    if (filter.EndDate.HasValue)
+                    {
+                        filter.EndDate = filter.EndDate.Value.Date.AddDays(1).AddSeconds(-1);
+                    }
+                }
+
+                if (options.UseCustomerFilter)
+                {
+                    filter.CustomerId = options.CustomerId;
+                }
+            }
+
+            var result = await _exportService.ExportExcelAsync(ToExportFilter(filter), AppRuntimeContext.DataDir, options.OutputPath);
             ShowExportResult("Excel", result);
         }
         catch (Exception ex)
@@ -971,6 +1039,7 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         return new ExportOrderFilter
         {
+            SelectedOrderIds = filter.SelectedOrderIds,
             CustomerId = filter.CustomerId,
             StartDate = filter.StartDate,
             EndDate = filter.EndDate,
@@ -981,6 +1050,92 @@ public sealed class MainWindowViewModel : ObservableObject
             Keyword = filter.Keyword,
             IncludeWireTypeInKeyword = filter.IncludeWireTypeInKeyword
         };
+    }
+
+    private void OnOrderSelectionChanged(OrderListItemViewModel row, bool isSelected)
+    {
+        if (_updatingSelection)
+        {
+            return;
+        }
+
+        if (isSelected)
+        {
+            SelectedOrderIds.Add(row.Id);
+        }
+        else
+        {
+            SelectedOrderIds.Remove(row.Id);
+        }
+
+        UpdateSelectionSummary();
+    }
+
+    private void SelectAllCurrentResult()
+    {
+        _updatingSelection = true;
+        foreach (var row in Orders)
+        {
+            row.IsSelected = true;
+            SelectedOrderIds.Add(row.Id);
+        }
+
+        _updatingSelection = false;
+        UpdateSelectionSummary();
+    }
+
+    private void ClearSelection()
+    {
+        SelectedOrderIds.Clear();
+        _updatingSelection = true;
+        foreach (var row in Orders)
+        {
+            row.IsSelected = false;
+        }
+
+        _updatingSelection = false;
+        UpdateSelectionSummary();
+    }
+
+    private void UpdateSelectionSummary()
+    {
+        SelectedOrderCount = SelectedOrderIds.Count;
+        ExportSelectedCommand.RaiseCanExecuteChanged();
+        PrintSelectedCommand.RaiseCanExecuteChanged();
+    }
+
+    private Task PrintSelectedAsync()
+    {
+        return PrintSelectedInternalAsync();
+    }
+
+    private async Task PrintSelectedInternalAsync()
+    {
+        if (SelectedOrderIds.Count == 0)
+        {
+            MessageBox.Show("请先勾选要打印的订单。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var filter = new OrderQueryFilter
+        {
+            SelectedOrderIds = SelectedOrderIds.ToList(),
+            SortBy = "DateTime",
+            SortDescending = true
+        };
+
+        var orders = await _orderService.QueryOrdersForExportAsync(filter);
+        if (orders.Count == 0)
+        {
+            MessageBox.Show("未找到可打印订单。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var printWindow = new PrintBillsWindow(orders, new PrintService())
+        {
+            Owner = Application.Current.MainWindow
+        };
+        printWindow.ShowDialog();
     }
 
     private static void ShowExportResult(string exportType, ExportResult result)

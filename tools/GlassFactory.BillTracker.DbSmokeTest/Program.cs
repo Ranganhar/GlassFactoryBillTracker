@@ -47,8 +47,9 @@ var order = new Order
             GlassWidthMm = 1000m,
             Quantity = 2,
             GlassUnitPricePerM2 = 120.1234m,
+            Model = "SM-A",
             WireType = "丝A",
-            WireUnitPrice = 15.5000m,
+            HoleFee = 15.5000m,
             OtherFee = 3.2500m,
             Note = "明细1"
         },
@@ -58,8 +59,9 @@ var order = new Order
             GlassWidthMm = 800m,
             Quantity = 3,
             GlassUnitPricePerM2 = 98.8888m,
+            Model = "SM-B",
             WireType = "丝B",
-            WireUnitPrice = 12.0000m,
+            HoleFee = 12.0000m,
             OtherFee = 1.0000m,
             Note = "明细2"
         }

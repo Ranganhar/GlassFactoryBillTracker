@@ -11,10 +11,12 @@ public sealed class OrderItemRowViewModel : ObservableObject
     private decimal _glassWidthMm;
     private int _quantity = 1;
     private decimal _glassUnitPricePerM2;
+    private string _model = string.Empty;
     private string _wireType = string.Empty;
     private decimal _wireUnitPrice;
+    private decimal _holeFee;
     private decimal _otherFee;
-    private decimal _lineAmount;
+    private decimal _amount;
     private string? _note;
 
     private readonly Action? _recalculateCallback;
@@ -90,6 +92,18 @@ public sealed class OrderItemRowViewModel : ObservableObject
         }
     }
 
+    public string Model
+    {
+        get => _model;
+        set
+        {
+            if (SetProperty(ref _model, value))
+            {
+                Recalculate();
+            }
+        }
+    }
+
     public decimal WireUnitPrice
     {
         get => _wireUnitPrice;
@@ -114,10 +128,22 @@ public sealed class OrderItemRowViewModel : ObservableObject
         }
     }
 
-    public decimal LineAmount
+    public decimal HoleFee
     {
-        get => _lineAmount;
-        private set => SetProperty(ref _lineAmount, value);
+        get => _holeFee;
+        set
+        {
+            if (SetProperty(ref _holeFee, value))
+            {
+                Recalculate();
+            }
+        }
+    }
+
+    public decimal Amount
+    {
+        get => _amount;
+        private set => SetProperty(ref _amount, value);
     }
 
     public string? Note
@@ -135,13 +161,15 @@ public sealed class OrderItemRowViewModel : ObservableObject
             GlassWidthMm = GlassWidthMm,
             Quantity = Quantity,
             GlassUnitPricePerM2 = GlassUnitPricePerM2,
+            Model = string.IsNullOrWhiteSpace(Model) ? string.Empty : Model.Trim(),
             WireType = WireType,
             WireUnitPrice = WireUnitPrice,
+            HoleFee = HoleFee,
             OtherFee = OtherFee,
             Note = Note
         };
 
-        item.LineAmount = OrderAmountCalculator.CalculateLineAmount(item);
+        item.Amount = OrderAmountCalculator.CalculateAmount(item);
         return item;
     }
 
@@ -154,8 +182,10 @@ public sealed class OrderItemRowViewModel : ObservableObject
             GlassWidthMm = item.GlassWidthMm,
             Quantity = item.Quantity,
             GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
+            Model = item.Model,
             WireType = item.WireType,
             WireUnitPrice = item.WireUnitPrice,
+            HoleFee = item.HoleFee,
             OtherFee = item.OtherFee,
             Note = item.Note
         };
@@ -167,7 +197,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
     public void Recalculate()
     {
         var snapshot = ToEntity();
-        LineAmount = snapshot.LineAmount;
+        Amount = snapshot.Amount;
         _recalculateCallback?.Invoke();
     }
 }

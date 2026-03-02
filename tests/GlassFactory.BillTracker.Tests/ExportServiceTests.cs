@@ -54,8 +54,9 @@ public class ExportServiceTests
                         GlassWidthMm = 1000m,
                         Quantity = 2,
                         GlassUnitPricePerM2 = 100.1234m,
+                        Model = "M-EX-01",
                         WireType = "丝A",
-                        WireUnitPrice = 10m,
+                        HoleFee = 10m,
                         OtherFee = 2m,
                         Note = "明细A"
                     }
@@ -90,10 +91,15 @@ public class ExportServiceTests
 
         var orderItems = workbook.Worksheet("OrderItems");
         Assert.Equal("订单号 OrderNo", orderItems.Cell(1, 1).GetString());
-        Assert.Equal("长(mm) GlassLengthMm", orderItems.Cell(1, 2).GetString());
-        Assert.Equal("宽(mm) GlassWidthMm", orderItems.Cell(1, 3).GetString());
-        Assert.Equal("数量 Quantity", orderItems.Cell(1, 4).GetString());
-        Assert.Equal("玻璃单价(元/㎡) GlassUnitPricePerM2", orderItems.Cell(1, 5).GetString());
+        Assert.Equal("型号 Model", orderItems.Cell(1, 2).GetString());
+        Assert.Equal("长(mm) GlassLengthMm", orderItems.Cell(1, 3).GetString());
+        Assert.Equal("宽(mm) GlassWidthMm", orderItems.Cell(1, 4).GetString());
+        Assert.Equal("数量 Quantity", orderItems.Cell(1, 5).GetString());
+        Assert.Equal("玻璃单价(元/㎡) GlassUnitPricePerM2", orderItems.Cell(1, 6).GetString());
+
+        Assert.NotNull(workbook.Worksheet("ByCustomer"));
+        var byCustomer = workbook.Worksheet("ByCustomer");
+        Assert.Contains("客户:", byCustomer.Cell(1, 1).GetString());
 
         var totalRow = orders.LastRowUsed()!.RowNumber();
         Assert.Equal("合计", orders.Cell(totalRow, 1).GetString());

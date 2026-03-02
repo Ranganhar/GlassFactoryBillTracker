@@ -6,7 +6,7 @@ namespace GlassFactory.BillTracker.Tests;
 public class OrderAmountCalculatorTests
 {
     [Fact]
-    public void CalculateLineAndTotal_ShouldUseMmToM2AndRoundTo4Digits_AwayFromZero()
+    public void CalculateAmountAndTotal_ShouldUseMmToM2AndRoundTo4Digits_AwayFromZero()
     {
         var item1 = new OrderItem
         {
@@ -14,8 +14,9 @@ public class OrderAmountCalculatorTests
             GlassWidthMm = 987.6543m,
             Quantity = 2,
             GlassUnitPricePerM2 = 88.8888m,
+            Model = "A-01",
             WireType = "丝A",
-            WireUnitPrice = 5.5555m,
+            HoleFee = 5.5555m,
             OtherFee = 1.2345m
         };
 
@@ -25,16 +26,17 @@ public class OrderAmountCalculatorTests
             GlassWidthMm = 800m,
             Quantity = 3,
             GlassUnitPricePerM2 = 99.9999m,
+            Model = "B-02",
             WireType = "丝B",
-            WireUnitPrice = 2.2222m,
+            HoleFee = 2.2222m,
             OtherFee = 0.3333m
         };
 
-        var line1 = OrderAmountCalculator.CalculateLineAmount(item1);
-        var line2 = OrderAmountCalculator.CalculateLineAmount(item2);
+        var amount1 = OrderAmountCalculator.CalculateAmount(item1);
+        var amount2 = OrderAmountCalculator.CalculateAmount(item2);
 
-        Assert.Equal(223.5542m, line1);
-        Assert.Equal(362.5551m, line2);
+        Assert.Equal(223.5542m, amount1);
+        Assert.Equal(362.5551m, amount2);
 
         var total = OrderAmountCalculator.CalculateOrderTotal(new[] { item1, item2 });
         Assert.Equal(586.1093m, total);

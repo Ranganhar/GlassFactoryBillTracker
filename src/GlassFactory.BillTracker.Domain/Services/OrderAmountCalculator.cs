@@ -17,28 +17,28 @@ public static class OrderAmountCalculator
         return Round(glassCost);
     }
 
-    public static decimal CalculateLineAmount(OrderItem item)
+    public static decimal CalculateAmount(OrderItem item)
     {
-        var lineAmount = CalculateGlassCost(item) + item.WireUnitPrice + item.OtherFee;
-        return Round(lineAmount);
+        var amount = CalculateGlassCost(item) + item.HoleFee + item.OtherFee;
+        return Round(amount);
     }
 
     public static decimal CalculateOrderTotal(IEnumerable<OrderItem> items)
     {
-        var sum = items.Sum(CalculateLineAmount);
+        var sum = items.Sum(CalculateAmount);
         return Round(sum);
     }
 
-    public static void ApplyLineAmount(OrderItem item)
+    public static void ApplyAmount(OrderItem item)
     {
-        item.LineAmount = CalculateLineAmount(item);
+        item.Amount = CalculateAmount(item);
     }
 
     public static void ApplyOrderTotal(Order order)
     {
         foreach (var item in order.Items)
         {
-            ApplyLineAmount(item);
+            ApplyAmount(item);
         }
 
         order.TotalAmount = CalculateOrderTotal(order.Items);

@@ -4,6 +4,7 @@ namespace GlassFactory.BillTracker.Data.Exports;
 
 public sealed class ExportOrderFilter
 {
+    public IReadOnlyCollection<Guid>? SelectedOrderIds { get; init; }
     public Guid? CustomerId { get; init; }
     public DateTime? StartDate { get; init; }
     public DateTime? EndDate { get; init; }

@@ -327,7 +327,12 @@ public sealed class OrderEditViewModel : ObservableObject
                 throw new InvalidOperationException("明细的长/宽/数量必须大于0。");
             }
 
-            if (row.GlassUnitPricePerM2 < 0 || row.WireUnitPrice < 0 || row.OtherFee < 0)
+            if (string.IsNullOrWhiteSpace(row.Model))
+            {
+                throw new InvalidOperationException("明细型号不能为空。");
+            }
+
+            if (row.GlassUnitPricePerM2 < 0 || row.HoleFee < 0 || row.OtherFee < 0)
             {
                 throw new InvalidOperationException("明细单价与费用不能为负数。");
             }

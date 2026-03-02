@@ -54,8 +54,9 @@ public class OrderStatusFilterTests
                             GlassWidthMm = 1000m,
                             Quantity = 1,
                             GlassUnitPricePerM2 = 100m,
+                            Model = "M-001",
                             WireType = "筛选丝",
-                            WireUnitPrice = 1m,
+                            HoleFee = 1m,
                             OtherFee = 0m
                         }
                     }

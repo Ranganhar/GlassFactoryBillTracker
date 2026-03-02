@@ -5,6 +5,7 @@ namespace GlassFactory.BillTracker.App.Models;
 public sealed class OrderListRowDto
 {
     public Guid Id { get; init; }
+    public bool IsSelected { get; init; }
     public string OrderNo { get; init; } = string.Empty;
     public DateTime DateTime { get; init; }
     public string CustomerName { get; init; } = string.Empty;

@@ -1,0 +1,52 @@
+<Window x:Class="GlassFactory.BillTracker.App.Views.ExportExcelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Excel导出设置"
+        Width="620"
+        Height="430"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="导出模式" FontWeight="Bold" Margin="0,0,0,8" />
+
+            <CheckBox x:Name="UseSelectedOrdersCheckBox" Content="导出选中订单（优先级最高）" Margin="0,0,0,8" Checked="UseSelectedOrdersCheckBox_Changed" Unchecked="UseSelectedOrdersCheckBox_Changed" />
+
+            <StackPanel Margin="0,0,0,8">
+                <CheckBox x:Name="UseDateRangeCheckBox" Content="按日期范围过滤" Margin="0,0,0,6" />
+                <StackPanel Orientation="Horizontal" Margin="20,0,0,0">
+                    <TextBlock Text="开始" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <DatePicker x:Name="StartDatePicker" Width="160" />
+                    <TextBlock Text="结束" VerticalAlignment="Center" Margin="16,0,6,0" />
+                    <DatePicker x:Name="EndDatePicker" Width="160" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Margin="0,0,0,8">
+                <CheckBox x:Name="UseCustomerCheckBox" Content="按客户过滤" Margin="0,0,0,6" />
+                <StackPanel Orientation="Horizontal" Margin="20,0,0,0">
+                    <TextBlock Text="客户" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <ComboBox x:Name="CustomerComboBox" Width="360" DisplayMemberPath="DisplayName" SelectedValuePath="Value" />
+                </StackPanel>
+            </StackPanel>
+
+            <Separator Margin="0,10,0,10" />
+            <TextBlock Text="导出文件" FontWeight="Bold" Margin="0,0,0,8" />
+            <StackPanel Orientation="Horizontal">
+                <TextBox x:Name="OutputPathTextBox" Width="470" VerticalAlignment="Center" />
+                <Button Content="浏览..." Width="100" Margin="8,0,0,0" Click="BrowseButton_Click" />
+            </StackPanel>
+            <TextBlock Text="默认文件名：BillTracker_yyyyMMdd_HHmmss.xlsx" Foreground="Gray" Margin="0,6,0,0" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="ExportButton" Content="导出" Width="100" Margin="0,0,8,0" Click="ExportButton_Click" />
+            <Button Content="取消" Width="100" Click="CancelButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -26,6 +26,9 @@ public sealed class ExportService : IExportService
         var ordersSheet = workbook.Worksheets.Add("Orders");
         WriteOrdersSheet(ordersSheet, orders);
 
+        var byCustomerSheet = workbook.Worksheets.Add("ByCustomer");
+        WriteByCustomerSheet(byCustomerSheet, orders);
+
         var itemsSheet = workbook.Worksheets.Add("OrderItems");
         WriteOrderItemsSheet(itemsSheet, items, orders.ToDictionary(x => x.Id, x => x.OrderNo));
 
@@ -99,6 +102,12 @@ public sealed class ExportService : IExportService
 
     private static IQueryable<Order> ApplyFilter(IQueryable<Order> query, ExportOrderFilter filter)
     {
+        if (filter.SelectedOrderIds is { Count: > 0 })
+        {
+            query = query.Where(x => filter.SelectedOrderIds.Contains(x.Id));
+            return query;
+        }
+
         if (filter.CustomerId.HasValue)
         {
             query = query.Where(x => x.CustomerId == filter.CustomerId.Value);
@@ -200,6 +209,7 @@ public sealed class ExportService : IExportService
         var headers = new[]
         {
             "订单号 OrderNo",
+            "型号 Model",
             "长(mm) GlassLengthMm",
             "宽(mm) GlassWidthMm",
             "数量 Quantity",
@@ -207,9 +217,9 @@ public sealed class ExportService : IExportService
             "面积(㎡) AreaM2",
             "玻璃费用 GlassCost",
             "丝织品类型 WireType",
-            "丝织品单价 WireUnitPrice",
+            "打孔费 HoleFee",
             "其他费用 OtherFee",
-            "行金额 LineAmount",
+            "金额 Amount",
             "备注 Note"
         };
 
@@ -223,25 +233,78 @@ public sealed class ExportService : IExportService
         {
             var area = OrderAmountCalculator.CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm);
             var glassCost = OrderAmountCalculator.CalculateGlassCost(item);
-            var lineAmount = OrderAmountCalculator.CalculateLineAmount(item);
+            var amount = OrderAmountCalculator.CalculateAmount(item);
 
             sheet.Cell(row, 1).Value = orderNoMap.TryGetValue(item.OrderId, out var orderNo) ? orderNo : string.Empty;
-            sheet.Cell(row, 2).Value = item.GlassLengthMm;
-            sheet.Cell(row, 3).Value = item.GlassWidthMm;
-            sheet.Cell(row, 4).Value = item.Quantity;
-            sheet.Cell(row, 5).Value = OrderAmountCalculator.Round(item.GlassUnitPricePerM2);
-            sheet.Cell(row, 6).Value = Math.Round(area, 6, MidpointRounding.AwayFromZero);
-            sheet.Cell(row, 7).Value = glassCost;
-            sheet.Cell(row, 8).Value = item.WireType;
-            sheet.Cell(row, 9).Value = OrderAmountCalculator.Round(item.WireUnitPrice);
-            sheet.Cell(row, 10).Value = OrderAmountCalculator.Round(item.OtherFee);
-            sheet.Cell(row, 11).Value = lineAmount;
-            sheet.Cell(row, 12).Value = item.Note ?? string.Empty;
+            sheet.Cell(row, 2).Value = item.Model;
+            sheet.Cell(row, 3).Value = item.GlassLengthMm;
+            sheet.Cell(row, 4).Value = item.GlassWidthMm;
+            sheet.Cell(row, 5).Value = item.Quantity;
+            sheet.Cell(row, 6).Value = OrderAmountCalculator.Round(item.GlassUnitPricePerM2);
+            sheet.Cell(row, 7).Value = Math.Round(area, 6, MidpointRounding.AwayFromZero);
+            sheet.Cell(row, 8).Value = glassCost;
+            sheet.Cell(row, 9).Value = item.WireType;
+            sheet.Cell(row, 10).Value = OrderAmountCalculator.Round(item.HoleFee);
+            sheet.Cell(row, 11).Value = OrderAmountCalculator.Round(item.OtherFee);
+            sheet.Cell(row, 12).Value = amount;
+            sheet.Cell(row, 13).Value = item.Note ?? string.Empty;
 
             row++;
         }
 
-        ApplySheetStyle(sheet, row - 1, 12, amountColumns: new[] { 5, 7, 9, 10, 11 }, areaColumns: new[] { 6 });
+        ApplySheetStyle(sheet, row - 1, 13, amountColumns: new[] { 6, 8, 10, 11, 12 }, areaColumns: new[] { 7 });
+    }
+
+    private static void WriteByCustomerSheet(IXLWorksheet sheet, IReadOnlyList<Order> orders)
+    {
+        var row = 1;
+        var groups = orders
+            .GroupBy(x => x.Customer.Name)
+            .OrderBy(x => x.Key)
+            .ToList();
+
+        if (groups.Count == 0)
+        {
+            sheet.Cell(row, 1).Value = "无可导出客户数据";
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            var customer = group.First().Customer;
+            sheet.Range(row, 1, row, 8).Merge();
+            sheet.Cell(row, 1).Value = $"客户: {group.Key}    电话: {customer.Phone ?? string.Empty}    地址: {customer.Address ?? string.Empty}";
+            sheet.Cell(row, 1).Style.Font.Bold = true;
+            sheet.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.FromArgb(230, 230, 230);
+            row++;
+
+            sheet.Cell(row, 1).Value = "订单号";
+            sheet.Cell(row, 2).Value = "日期时间";
+            sheet.Cell(row, 3).Value = "支付方式";
+            sheet.Cell(row, 4).Value = "订单状态";
+            sheet.Cell(row, 5).Value = "总金额";
+            sheet.Cell(row, 6).Value = "备注";
+            sheet.Range(row, 1, row, 6).Style.Font.Bold = true;
+            row++;
+
+            foreach (var order in group.OrderByDescending(x => x.DateTime))
+            {
+                sheet.Cell(row, 1).Value = order.OrderNo;
+                sheet.Cell(row, 2).Value = order.DateTime;
+                sheet.Cell(row, 3).Value = order.PaymentMethod.ToString();
+                sheet.Cell(row, 4).Value = order.OrderStatus.ToString();
+                sheet.Cell(row, 5).Value = OrderAmountCalculator.Round(order.TotalAmount);
+                sheet.Cell(row, 6).Value = order.Note ?? string.Empty;
+                row++;
+            }
+
+            sheet.Cell(row, 4).Value = "小计";
+            sheet.Cell(row, 5).Value = OrderAmountCalculator.Round(group.Sum(x => x.TotalAmount));
+            sheet.Range(row, 4, row, 5).Style.Font.Bold = true;
+            row += 2;
+        }
+
+        ApplySheetStyle(sheet, row - 1, 8, amountColumns: new[] { 5 }, dateColumns: new[] { 2 });
     }
 
     private static void ApplySheetStyle(

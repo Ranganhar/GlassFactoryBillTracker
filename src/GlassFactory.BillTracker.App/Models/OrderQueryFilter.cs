@@ -4,6 +4,7 @@ namespace GlassFactory.BillTracker.App.Models;
 
 public sealed class OrderQueryFilter
 {
+    public IReadOnlyCollection<Guid>? SelectedOrderIds { get; set; }
     public Guid? CustomerId { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }

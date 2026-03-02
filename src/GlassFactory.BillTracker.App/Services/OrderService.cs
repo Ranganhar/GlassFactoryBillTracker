@@ -31,6 +31,11 @@ public sealed class OrderService : IOrderService
                 query = query.Where(x => x.CustomerId == filter.CustomerId.Value);
             }
 
+            if (filter.SelectedOrderIds is { Count: > 0 })
+            {
+                query = query.Where(x => filter.SelectedOrderIds.Contains(x.Id));
+            }
+
             if (filter.StartDate.HasValue)
             {
                 query = query.Where(x => x.DateTime >= filter.StartDate.Value);
@@ -132,6 +137,80 @@ public sealed class OrderService : IOrderService
             .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken);
     }
 
+    public async Task<List<OrderExportDto>> QueryOrdersForExportAsync(OrderQueryFilter filter, CancellationToken cancellationToken = default)
+    {
+        await using var db = AppRuntimeContext.CreateDbContext();
+
+        var query = db.Orders
+            .AsNoTracking()
+            .Include(x => x.Customer)
+            .Include(x => x.Items)
+            .AsQueryable();
+
+        if (filter.SelectedOrderIds is { Count: > 0 })
+        {
+            query = query.Where(x => filter.SelectedOrderIds.Contains(x.Id));
+        }
+        else
+        {
+            if (filter.CustomerId.HasValue)
+            {
+                query = query.Where(x => x.CustomerId == filter.CustomerId.Value);
+            }
+
+            if (filter.StartDate.HasValue)
+            {
+                query = query.Where(x => x.DateTime >= filter.StartDate.Value);
+            }
+
+            if (filter.EndDate.HasValue)
+            {
+                query = query.Where(x => x.DateTime <= filter.EndDate.Value);
+            }
+
+            if (filter.OrderStatus.HasValue)
+            {
+                query = query.Where(x => x.OrderStatus == filter.OrderStatus.Value);
+            }
+
+            if (filter.PaymentMethod.HasValue)
+            {
+                query = query.Where(x => x.PaymentMethod == filter.PaymentMethod.Value);
+            }
+        }
+
+        var orders = await query
+            .OrderByDescending(x => x.DateTime)
+            .ToListAsync(cancellationToken);
+
+        return orders.Select(order => new OrderExportDto
+        {
+            Id = order.Id,
+            OrderNo = order.OrderNo,
+            DateTime = order.DateTime,
+            CustomerName = order.Customer.Name,
+            CustomerPhone = order.Customer.Phone,
+            CustomerAddress = order.Customer.Address,
+            PaymentMethod = order.PaymentMethod,
+            OrderStatus = order.OrderStatus,
+            TotalAmount = order.TotalAmount,
+            Note = order.Note,
+            Items = order.Items.Select(item => new OrderExportItemDto
+            {
+                Model = item.Model,
+                GlassLengthMm = item.GlassLengthMm,
+                GlassWidthMm = item.GlassWidthMm,
+                Quantity = item.Quantity,
+                GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
+                HoleFee = item.HoleFee,
+                OtherFee = item.OtherFee,
+                Amount = item.Amount,
+                WireType = item.WireType,
+                Note = item.Note
+            }).ToList()
+        }).ToList();
+    }
+
     public async Task<string> GenerateOrderNoAsync(DateTime dateTime, CancellationToken cancellationToken = default)
     {
         await using var db = AppRuntimeContext.CreateDbContext();
@@ -210,13 +289,15 @@ public sealed class OrderService : IOrderService
                     GlassWidthMm = item.GlassWidthMm,
                     Quantity = item.Quantity,
                     GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
+                    Model = item.Model,
                     WireType = item.WireType,
                     WireUnitPrice = item.WireUnitPrice,
+                    HoleFee = item.HoleFee,
                     OtherFee = item.OtherFee,
                     Note = item.Note
                 };
 
-                OrderAmountCalculator.ApplyLineAmount(newItem);
+                OrderAmountCalculator.ApplyAmount(newItem);
                 entity.Items.Add(newItem);
             }
 
@@ -248,11 +329,13 @@ public sealed class OrderService : IOrderService
                     trackedItem.GlassWidthMm = item.GlassWidthMm;
                     trackedItem.Quantity = item.Quantity;
                     trackedItem.GlassUnitPricePerM2 = item.GlassUnitPricePerM2;
+                    trackedItem.Model = item.Model;
                     trackedItem.WireType = item.WireType;
                     trackedItem.WireUnitPrice = item.WireUnitPrice;
+                    trackedItem.HoleFee = item.HoleFee;
                     trackedItem.OtherFee = item.OtherFee;
                     trackedItem.Note = item.Note;
-                    OrderAmountCalculator.ApplyLineAmount(trackedItem);
+                    OrderAmountCalculator.ApplyAmount(trackedItem);
                     touchedIds.Add(trackedItem.Id);
                     continue;
                 }
@@ -265,13 +348,15 @@ public sealed class OrderService : IOrderService
                     GlassWidthMm = item.GlassWidthMm,
                     Quantity = item.Quantity,
                     GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
+                    Model = item.Model,
                     WireType = item.WireType,
                     WireUnitPrice = item.WireUnitPrice,
+                    HoleFee = item.HoleFee,
                     OtherFee = item.OtherFee,
                     Note = item.Note
                 };
 
-                OrderAmountCalculator.ApplyLineAmount(newItem);
+                OrderAmountCalculator.ApplyAmount(newItem);
                 entity.Items.Add(newItem);
                 touchedIds.Add(newItem.Id);
             }
@@ -357,7 +442,12 @@ public sealed class OrderService : IOrderService
             throw new InvalidOperationException("明细中的数量必须大于0。");
         }
 
-        if (item.GlassUnitPricePerM2 < 0 || item.WireUnitPrice < 0 || item.OtherFee < 0)
+        if (string.IsNullOrWhiteSpace(item.Model))
+        {
+            throw new InvalidOperationException("明细中的型号不能为空。");
+        }
+
+        if (item.GlassUnitPricePerM2 < 0 || item.HoleFee < 0 || item.OtherFee < 0)
         {
             throw new InvalidOperationException("明细中的单价与费用不能为负数。");
         }

@@ -34,7 +34,14 @@
                 <Separator />
                 <Button Content="导出Excel" Command="{Binding ExportExcelCommand}" Margin="2" />
                 <Button Content="导出JSON" Command="{Binding ExportJsonCommand}" Margin="2" />
+                <Button Content="全选当前结果" Command="{Binding SelectAllOrdersCommand}" Margin="2" />
+                <Button Content="清空勾选" Command="{Binding ClearOrderSelectionCommand}" Margin="2" />
+                <Button Content="导出选中" Command="{Binding ExportSelectedCommand}" Margin="2" />
+                <Button Content="打印选中" Command="{Binding PrintSelectedCommand}" Margin="2" />
                 <Button Content="刷新" Command="{Binding RefreshCommand}" Margin="2" />
+                <Separator />
+                <TextBlock VerticalAlignment="Center" Margin="4,0,4,0" Text="已选：" />
+                <TextBlock VerticalAlignment="Center" Margin="0,0,8,0" Text="{Binding SelectedOrderCount}" />
                 <Separator />
                 <TextBlock VerticalAlignment="Center" Margin="8,0,4,0" Text="搜索：" />
                 <TextBox x:Name="OrderSearchBox"
@@ -182,20 +189,21 @@
                         <DataGrid x:Name="OrdersDataGrid"
                                   ItemsSource="{Binding Orders}"
                                   SelectedItem="{Binding SelectedOrder}"
-                                  IsReadOnly="True"
+                                  IsReadOnly="False"
                                   AutoGenerateColumns="False"
                                   CanUserSortColumns="True"
                                   Sorting="OrdersDataGrid_Sorting"
                                   MouseDoubleClick="OrdersDataGrid_MouseDoubleClick"
                                   SelectionMode="Single">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="订单号" Binding="{Binding OrderNo}" SortMemberPath="OrderNo" Width="150" />
-                                <DataGridTextColumn Header="日期时间" Binding="{Binding DateTime, StringFormat=yyyy-MM-dd HH:mm:ss}" SortMemberPath="DateTime" Width="170" />
-                                <DataGridTextColumn Header="客户" Binding="{Binding CustomerName}" SortMemberPath="CustomerName" Width="120" />
-                                <DataGridTextColumn Header="支付方式" Binding="{Binding PaymentMethod}" SortMemberPath="PaymentMethod" Width="100" />
-                                <DataGridTextColumn Header="订单状态" Binding="{Binding OrderStatus}" SortMemberPath="OrderStatus" Width="100" />
-                                <DataGridTextColumn Header="总金额" Binding="{Binding TotalAmount, StringFormat=F4}" SortMemberPath="TotalAmount" Width="120" />
-                                <DataGridTextColumn Header="备注" Binding="{Binding Note}" SortMemberPath="Note" Width="*" />
+                                <DataGridCheckBoxColumn Header="选择" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="60" />
+                                <DataGridTextColumn Header="订单号" Binding="{Binding OrderNo}" SortMemberPath="OrderNo" Width="150" IsReadOnly="True" />
+                                <DataGridTextColumn Header="日期时间" Binding="{Binding DateTime, StringFormat=yyyy-MM-dd HH:mm:ss}" SortMemberPath="DateTime" Width="170" IsReadOnly="True" />
+                                <DataGridTextColumn Header="客户" Binding="{Binding CustomerName}" SortMemberPath="CustomerName" Width="120" IsReadOnly="True" />
+                                <DataGridTextColumn Header="支付方式" Binding="{Binding PaymentMethod}" SortMemberPath="PaymentMethod" Width="100" IsReadOnly="True" />
+                                <DataGridTextColumn Header="订单状态" Binding="{Binding OrderStatus}" SortMemberPath="OrderStatus" Width="100" IsReadOnly="True" />
+                                <DataGridTextColumn Header="总金额" Binding="{Binding TotalAmount, StringFormat=F4}" SortMemberPath="TotalAmount" Width="120" IsReadOnly="True" />
+                                <DataGridTextColumn Header="备注" Binding="{Binding Note}" SortMemberPath="Note" Width="*" IsReadOnly="True" />
                             </DataGrid.Columns>
                         </DataGrid>
                         <TextBlock Text="暂无订单数据"
