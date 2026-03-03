@@ -1117,6 +1117,13 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private async Task PrintSelectedInternalAsync()
     {
+        if (_printService is null)
+        {
+            Log.Error("打印服务未初始化。DataDir={DataDir}", AppRuntimeContext.DataDir);
+            MessageBox.Show("打印服务不可用，请重启后重试。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
         var selectedIds = SelectedOrderIds.Where(x => x != Guid.Empty).Distinct().ToList();
         if (selectedIds.Count == 0)
         {

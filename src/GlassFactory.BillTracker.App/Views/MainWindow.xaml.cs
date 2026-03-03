@@ -1,8 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.ComponentModel;
+using System.Windows.Input;
 using GlassFactory.BillTracker.App.Services;
 using GlassFactory.BillTracker.App.ViewModels;
 using GlassFactory.BillTracker.Data.Exports;
@@ -12,12 +12,6 @@ namespace GlassFactory.BillTracker.App.Views;
 
 public partial class MainWindow : Window
 {
-    public static readonly RoutedUICommand FocusLeftCommand =
-        new("FocusLeft", nameof(FocusLeftCommand), typeof(MainWindow));
-
-    public static readonly RoutedUICommand ClearOrderSearchCommand =
-        new("ClearOrderSearch", nameof(ClearOrderSearchCommand), typeof(MainWindow));
-
     private readonly MainWindowViewModel _viewModel;
 
     public MainWindow()
@@ -65,31 +59,4 @@ public partial class MainWindow : Window
         await _viewModel.ApplyFiltersAsync(force: true, showValidationError: false);
     }
 
-    private void FindCommand_Executed(object sender, ExecutedRoutedEventArgs e)
-    {
-        OrderSearchBox.Focus();
-        OrderSearchBox.SelectAll();
-    }
-
-    private void FocusLeftCommand_Executed(object sender, ExecutedRoutedEventArgs e)
-    {
-        CustomerSearchBox.Focus();
-        CustomerSearchBox.SelectAll();
-    }
-
-    private async void ClearOrderSearchCommand_Executed(object sender, ExecutedRoutedEventArgs e)
-    {
-        _viewModel.ClearOrderSearchText();
-        await _viewModel.ApplyFiltersAsync(force: true, showValidationError: false);
-        OrderSearchBox.Focus();
-    }
-
-    private async void OrderSearchBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            e.Handled = true;
-            await _viewModel.TriggerImmediateSearchAsync(showValidationError: true);
-        }
-    }
 }

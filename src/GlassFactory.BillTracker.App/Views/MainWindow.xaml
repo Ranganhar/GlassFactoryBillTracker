@@ -12,33 +12,20 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </Window.Resources>
-    <Window.InputBindings>
-        <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewOrderCommand}" />
-        <KeyBinding Key="Delete" Command="{Binding DeleteOrderCommand}" />
-        <KeyBinding Key="F" Modifiers="Control" Command="Find" />
-        <KeyBinding Key="L" Modifiers="Control" Command="{x:Static local:MainWindow.FocusLeftCommand}" />
-        <KeyBinding Key="Escape" Command="{x:Static local:MainWindow.ClearOrderSearchCommand}" />
-        <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
-    </Window.InputBindings>
-    <Window.CommandBindings>
-        <CommandBinding Command="Find" Executed="FindCommand_Executed" />
-        <CommandBinding Command="{x:Static local:MainWindow.FocusLeftCommand}" Executed="FocusLeftCommand_Executed" />
-        <CommandBinding Command="{x:Static local:MainWindow.ClearOrderSearchCommand}" Executed="ClearOrderSearchCommand_Executed" />
-    </Window.CommandBindings>
     <DockPanel Margin="10">
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
-                <Button Content="新建订单(Ctrl+N)" Command="{Binding NewOrderCommand}" Margin="2" />
+                <Button Content="新建订单" Command="{Binding NewOrderCommand}" Margin="2" />
                 <Button Content="编辑订单" Command="{Binding EditOrderCommand}" Margin="2" />
-                <Button Content="删除订单(Del)" Command="{Binding DeleteOrderCommand}" Margin="2" />
+                <Button Content="删除订单" Command="{Binding DeleteOrderCommand}" Margin="2" />
                 <Separator />
                 <Button Content="导出Excel" Command="{Binding ExportExcelCommand}" Margin="2" />
                 <Button Content="导出JSON" Command="{Binding ExportJsonCommand}" Margin="2" />
                 <Button Content="全选当前结果" Command="{Binding SelectAllOrdersCommand}" Margin="2" />
                 <Button Content="清空勾选" Command="{Binding ClearOrderSelectionCommand}" Margin="2" />
                 <Button Content="导出选中" Command="{Binding ExportSelectedCommand}" Margin="2" />
-                <Button Content="打印选中" Command="{Binding PrintSelectedCommand}" Margin="2" />
-                <Button Content="Delete Selected (删除选中订单)" Command="{Binding DeleteSelectedOrdersCommand}" Margin="2" />
+                <Button Content="打印所选" Command="{Binding PrintSelectedCommand}" Margin="2" />
+                <Button Content="删除所选" Command="{Binding DeleteSelectedOrdersCommand}" Margin="2" />
                 <Button Content="刷新" Command="{Binding RefreshCommand}" Margin="2" />
                 <Separator />
                 <TextBlock VerticalAlignment="Center" Margin="4,0,4,0" Text="已选：" />
@@ -48,7 +35,6 @@
                 <TextBox x:Name="OrderSearchBox"
                          Width="220"
                          VerticalAlignment="Center"
-                         KeyDown="OrderSearchBox_KeyDown"
                          Text="{Binding OrderSearchKeyword, UpdateSourceTrigger=PropertyChanged}" />
                 <Button Content="查询" Command="{Binding SearchCommand}" Margin="6,0,0,0" />
             </ToolBar>

@@ -8,22 +8,52 @@ namespace GlassFactory.BillTracker.App.Views;
 public partial class PrintBillsWindow : Window
 {
     private readonly IReadOnlyList<OrderExportDto> _orders;
-    private readonly IPrintService _printService;
+    private readonly IPrintService? _printService;
     private PrintDialog? _selectedPrintDialog;
+    private bool _isInitializing;
 
     public PrintBillsWindow(IReadOnlyList<OrderExportDto> orders, IPrintService printService)
     {
-        InitializeComponent();
+        _isInitializing = true;
         _orders = orders ?? Array.Empty<OrderExportDto>();
-        _printService = printService ?? throw new ArgumentNullException(nameof(printService));
+        _printService = printService;
+
+        InitializeComponent();
+        DataContext = this;
         OrdersListBox.ItemsSource = _orders;
         PrinterTextBlock.Text = "未选择打印机";
+        if (TemplateComboBox.SelectedItem is null && TemplateComboBox.Items.Count > 0)
+        {
+            TemplateComboBox.SelectedIndex = 0;
+        }
+
+        _isInitializing = false;
+        ApplyTemplateUiState();
     }
 
     private void TemplateComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var tag = (TemplateComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
-        DotMatrixHeightComboBox.IsEnabled = string.Equals(tag, "DotMatrix", StringComparison.OrdinalIgnoreCase);
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        if (TemplateComboBox is null || DotMatrixHeightComboBox is null)
+        {
+            return;
+        }
+
+        if (TemplateComboBox.SelectedItem is null)
+        {
+            return;
+        }
+
+        if (DataContext is null)
+        {
+            return;
+        }
+
+        ApplyTemplateUiState();
     }
 
     private void SelectPrinterButton_Click(object sender, RoutedEventArgs e)
@@ -42,7 +72,13 @@ public partial class PrintBillsWindow : Window
     {
         if (_orders.Count == 0)
         {
-            MessageBox.Show("没有可打印订单。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("请先选择要打印的订单", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_printService is null)
+        {
+            MessageBox.Show("打印服务不可用，请重启后重试。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
@@ -98,5 +134,11 @@ public partial class PrintBillsWindow : Window
     {
         DialogResult = false;
         Close();
+    }
+
+    private void ApplyTemplateUiState()
+    {
+        var tag = (TemplateComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        DotMatrixHeightComboBox.IsEnabled = string.Equals(tag, "DotMatrix", StringComparison.OrdinalIgnoreCase);
     }
 }
