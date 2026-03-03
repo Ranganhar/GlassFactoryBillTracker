@@ -38,6 +38,7 @@
                 <Button Content="清空勾选" Command="{Binding ClearOrderSelectionCommand}" Margin="2" />
                 <Button Content="导出选中" Command="{Binding ExportSelectedCommand}" Margin="2" />
                 <Button Content="打印选中" Command="{Binding PrintSelectedCommand}" Margin="2" />
+                <Button Content="Delete Selected (删除选中订单)" Command="{Binding DeleteSelectedOrdersCommand}" Margin="2" />
                 <Button Content="刷新" Command="{Binding RefreshCommand}" Margin="2" />
                 <Separator />
                 <TextBlock VerticalAlignment="Center" Margin="4,0,4,0" Text="已选：" />

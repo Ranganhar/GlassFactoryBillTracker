@@ -14,9 +14,9 @@ public partial class PrintBillsWindow : Window
     public PrintBillsWindow(IReadOnlyList<OrderExportDto> orders, IPrintService printService)
     {
         InitializeComponent();
-        _orders = orders;
-        _printService = printService;
-        OrdersListBox.ItemsSource = orders;
+        _orders = orders ?? Array.Empty<OrderExportDto>();
+        _printService = printService ?? throw new ArgumentNullException(nameof(printService));
+        OrdersListBox.ItemsSource = _orders;
         PrinterTextBlock.Text = "未选择打印机";
     }
 
@@ -56,6 +56,12 @@ public partial class PrintBillsWindow : Window
         var document = options.TemplateKind == PrintTemplateKind.DotMatrix
             ? _printService.RenderDotMatrixTriplicate(_orders, options)
             : _printService.RenderA4(_orders, options);
+
+        if (document.Pages.Count == 0)
+        {
+            MessageBox.Show("没有可打印内容。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
 
         printDialog.PrintDocument(document.DocumentPaginator, "GlassFactoryBillTracker_Bills");
         DialogResult = true;

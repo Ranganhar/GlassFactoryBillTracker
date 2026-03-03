@@ -4,6 +4,7 @@ using GlassFactory.BillTracker.Domain.Services;
 using GlassFactory.BillTracker.Infrastructure.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using System.IO;
 
 namespace GlassFactory.BillTracker.App.Services;
 
@@ -188,14 +189,14 @@ public sealed class OrderService : IOrderService
             Id = order.Id,
             OrderNo = order.OrderNo,
             DateTime = order.DateTime,
-            CustomerName = order.Customer.Name,
-            CustomerPhone = order.Customer.Phone,
-            CustomerAddress = order.Customer.Address,
+            CustomerName = order.Customer?.Name ?? string.Empty,
+            CustomerPhone = order.Customer?.Phone,
+            CustomerAddress = order.Customer?.Address,
             PaymentMethod = order.PaymentMethod,
             OrderStatus = order.OrderStatus,
             TotalAmount = order.TotalAmount,
             Note = order.Note,
-            Items = order.Items.Select(item => new OrderExportItemDto
+            Items = (order.Items ?? Array.Empty<OrderItem>()).Select(item => new OrderExportItemDto
             {
                 Model = item.Model,
                 GlassLengthMm = item.GlassLengthMm,
@@ -209,6 +210,100 @@ public sealed class OrderService : IOrderService
                 Note = item.Note
             }).ToList()
         }).ToList();
+    }
+
+    public async Task<DeleteSelectedResult> DeleteOrdersAsync(IEnumerable<Guid> orderIds, CancellationToken cancellationToken = default)
+    {
+        var normalizedIds = (orderIds ?? Array.Empty<Guid>())
+            .Where(x => x != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (normalizedIds.Count == 0)
+        {
+            return new DeleteSelectedResult
+            {
+                RequestedCount = 0,
+                DeletedCount = 0,
+                NotFoundCount = 0,
+                FailedCount = 0
+            };
+        }
+
+        var deletedOrderNos = new List<string>();
+        try
+        {
+            await using var db = AppRuntimeContext.CreateDbContext();
+            await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+
+            var toDelete = await db.Orders
+                .Where(x => normalizedIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.OrderNo })
+                .ToListAsync(cancellationToken);
+
+            var foundIds = toDelete.Select(x => x.Id).ToHashSet();
+            var notFoundCount = normalizedIds.Count - foundIds.Count;
+
+            if (toDelete.Count > 0)
+            {
+                var trackedOrders = await db.Orders
+                    .Where(x => foundIds.Contains(x.Id))
+                    .ToListAsync(cancellationToken);
+
+                db.Orders.RemoveRange(trackedOrders);
+                await db.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+
+                deletedOrderNos.AddRange(toDelete.Select(x => x.OrderNo));
+            }
+            else
+            {
+                await tx.RollbackAsync(cancellationToken);
+            }
+
+            var result = new DeleteSelectedResult
+            {
+                RequestedCount = normalizedIds.Count,
+                DeletedCount = foundIds.Count,
+                NotFoundCount = notFoundCount,
+                FailedCount = 0
+            };
+
+            if (deletedOrderNos.Count > 0)
+            {
+                var attachmentsRoot = Path.Combine(AppRuntimeContext.DataDir, "attachments");
+                foreach (var orderNo in deletedOrderNos)
+                {
+                    try
+                    {
+                        var orderDir = Path.Combine(attachmentsRoot, orderNo);
+                        if (Directory.Exists(orderDir))
+                        {
+                            Directory.Delete(orderDir, recursive: true);
+                        }
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        result.AttachmentCleanupFailedCount++;
+                        Log.Warning(cleanupEx, "删除订单附件目录失败，OrderNo={OrderNo}", orderNo);
+                    }
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "批量删除订单失败，Count={Count}", normalizedIds.Count);
+            return new DeleteSelectedResult
+            {
+                RequestedCount = normalizedIds.Count,
+                DeletedCount = 0,
+                NotFoundCount = 0,
+                FailedCount = normalizedIds.Count,
+                ErrorMessage = ex.Message
+            };
+        }
     }
 
     public async Task<string> GenerateOrderNoAsync(DateTime dateTime, CancellationToken cancellationToken = default)

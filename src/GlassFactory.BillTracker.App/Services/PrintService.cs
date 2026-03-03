@@ -12,7 +12,13 @@ public sealed class PrintService : IPrintService
 {
     public FixedDocument RenderDotMatrixTriplicate(IReadOnlyList<OrderExportDto> orders, PrintBillOptions options)
     {
+        options ??= new PrintBillOptions();
         var document = new FixedDocument();
+        if (orders is null || orders.Count == 0)
+        {
+            return document;
+        }
+
         var pageWidth = MmToDip(241);
         var copyHeightMm = GetDotMatrixCopyHeight(options.DotMatrixHeightMode);
         var copiesPerPage = GetCopiesPerPage(options.DotMatrixHeightMode);
@@ -51,7 +57,13 @@ public sealed class PrintService : IPrintService
 
     public FixedDocument RenderA4(IReadOnlyList<OrderExportDto> orders, PrintBillOptions options)
     {
+        options ??= new PrintBillOptions();
         var document = new FixedDocument();
+        if (orders is null || orders.Count == 0)
+        {
+            return document;
+        }
+
         var pageWidth = MmToDip(210);
         var pageHeight = MmToDip(297);
 
@@ -77,6 +89,9 @@ public sealed class PrintService : IPrintService
 
     private static Border CreateBillCopyPanel(OrderExportDto order, PrintBillOptions options, double pageWidth, double pageHeight, bool isDotMatrix)
     {
+        options ??= new PrintBillOptions();
+        order ??= new OrderExportDto();
+
         var outerBorder = new Border
         {
             Width = pageWidth,
@@ -95,7 +110,7 @@ public sealed class PrintService : IPrintService
 
         var header = new TextBlock
         {
-            Text = options.HeaderText,
+            Text = string.IsNullOrWhiteSpace(options.HeaderText) ? "亿达夹丝玻璃" : options.HeaderText,
             FontWeight = FontWeights.Bold,
             FontSize = isDotMatrix ? 16 : 22,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -107,7 +122,7 @@ public sealed class PrintService : IPrintService
         var contactPhone = options.UseCustomerPhone ? (order.CustomerPhone ?? string.Empty) : (options.CustomPhone ?? string.Empty);
         var meta = new TextBlock
         {
-            Text = $"订单号: {order.OrderNo}    日期: {order.DateTime:yyyy-MM-dd HH:mm:ss}    客户: {order.CustomerName}    电话: {contactPhone}",
+            Text = $"订单号: {order.OrderNo ?? string.Empty}    日期: {order.DateTime:yyyy-MM-dd HH:mm:ss}    客户: {order.CustomerName ?? string.Empty}    电话: {contactPhone}",
             FontSize = isDotMatrix ? 11 : 13,
             Margin = new Thickness(0, 0, 0, 8),
             TextWrapping = TextWrapping.Wrap
@@ -136,12 +151,17 @@ public sealed class PrintService : IPrintService
         }
 
         var rowIndex = 1;
-        foreach (var item in order.Items)
+        foreach (var item in order.Items ?? Array.Empty<OrderExportItemDto>())
         {
+            if (item is null)
+            {
+                continue;
+            }
+
             table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var values = new[]
             {
-                item.Model,
+                item.Model ?? string.Empty,
                 item.GlassLengthMm.ToString("F0"),
                 item.GlassWidthMm.ToString("F0"),
                 item.Quantity.ToString(),

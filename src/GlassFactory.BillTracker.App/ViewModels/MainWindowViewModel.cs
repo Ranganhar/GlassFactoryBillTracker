@@ -22,6 +22,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IOrderService _orderService;
     private readonly IExportService _exportService;
     private readonly IFileDialogService _fileDialogService;
+    private readonly IPrintService _printService;
 
     private bool _suppressAutoApply;
     private CancellationTokenSource? _debounceCts;
@@ -233,6 +234,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public RelayCommand ClearOrderSelectionCommand { get; }
     public RelayCommand ExportSelectedCommand { get; }
     public RelayCommand PrintSelectedCommand { get; }
+    public RelayCommand DeleteSelectedOrdersCommand { get; }
 
     public RelayCommand AddCustomerCommand { get; }
     public RelayCommand EditCustomerCommand { get; }
@@ -244,12 +246,14 @@ public sealed class MainWindowViewModel : ObservableObject
         ICustomerService customerService,
         IOrderService orderService,
         IExportService exportService,
-        IFileDialogService fileDialogService)
+        IFileDialogService fileDialogService,
+        IPrintService printService)
     {
         _customerService = customerService;
         _orderService = orderService;
         _exportService = exportService;
         _fileDialogService = fileDialogService;
+        _printService = printService;
 
         SelectedPaymentFilter = PaymentMethodFilters.FirstOrDefault();
         SelectedStatusFilter = OrderStatusFilters.FirstOrDefault();
@@ -266,6 +270,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ClearOrderSelectionCommand = new RelayCommand(ClearSelection);
         ExportSelectedCommand = new RelayCommand(() => ExecuteUiAction(() => ExportExcelAsync(exportSelectedOnly: true), "导出选中订单"), () => SelectedOrderIds.Count > 0);
         PrintSelectedCommand = new RelayCommand(() => ExecuteUiAction(PrintSelectedAsync, "打印选中订单"), () => SelectedOrderIds.Count > 0);
+        DeleteSelectedOrdersCommand = new RelayCommand(() => ExecuteUiAction(DeleteSelectedOrdersAsync, "删除选中订单"), () => SelectedOrderIds.Count > 0);
 
         AddCustomerCommand = new RelayCommand(() => ExecuteUiAction(() => OpenCustomerDialogAsync(null), "新增客户"));
         EditCustomerCommand = new RelayCommand(() => ExecuteUiAction(EditSelectedCustomerAsync, "编辑客户"));
@@ -1102,6 +1107,7 @@ public sealed class MainWindowViewModel : ObservableObject
         SelectedOrderCount = SelectedOrderIds.Count;
         ExportSelectedCommand.RaiseCanExecuteChanged();
         PrintSelectedCommand.RaiseCanExecuteChanged();
+        DeleteSelectedOrdersCommand.RaiseCanExecuteChanged();
     }
 
     private Task PrintSelectedAsync()
@@ -1111,7 +1117,8 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private async Task PrintSelectedInternalAsync()
     {
-        if (SelectedOrderIds.Count == 0)
+        var selectedIds = SelectedOrderIds.Where(x => x != Guid.Empty).Distinct().ToList();
+        if (selectedIds.Count == 0)
         {
             MessageBox.Show("请先勾选要打印的订单。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -1119,23 +1126,64 @@ public sealed class MainWindowViewModel : ObservableObject
 
         var filter = new OrderQueryFilter
         {
-            SelectedOrderIds = SelectedOrderIds.ToList(),
+            SelectedOrderIds = selectedIds,
             SortBy = "DateTime",
             SortDescending = true
         };
 
-        var orders = await _orderService.QueryOrdersForExportAsync(filter);
+        var orders = await _orderService.QueryOrdersForExportAsync(filter) ?? new List<OrderExportDto>();
         if (orders.Count == 0)
         {
             MessageBox.Show("未找到可打印订单。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var printWindow = new PrintBillsWindow(orders, new PrintService())
+        var printWindow = new PrintBillsWindow(orders, _printService)
         {
             Owner = Application.Current.MainWindow
         };
         printWindow.ShowDialog();
+    }
+
+    private async Task DeleteSelectedOrdersAsync()
+    {
+        var selectedIds = SelectedOrderIds.Where(x => x != Guid.Empty).Distinct().ToList();
+        if (selectedIds.Count == 0)
+        {
+            MessageBox.Show("请先勾选要删除的订单。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            $"Are you sure you want to delete {selectedIds.Count} selected orders? This cannot be undone.",
+            "确认删除",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var result = await _orderService.DeleteOrdersAsync(selectedIds);
+
+        SelectedOrderIds.Clear();
+        UpdateSelectionSummary();
+        await ApplyFiltersAsync(force: true, showValidationError: false);
+
+        var summary = $"批量删除完成。\n请求数: {result.RequestedCount}\n成功: {result.DeletedCount}\n未找到: {result.NotFoundCount}\n失败: {result.FailedCount}";
+        if (result.AttachmentCleanupFailedCount > 0)
+        {
+            summary += $"\n附件目录清理失败: {result.AttachmentCleanupFailedCount}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+        {
+            summary += $"\n错误信息: {result.ErrorMessage}";
+        }
+
+        MessageBox.Show(summary, result.FailedCount > 0 ? "部分失败" : "完成", MessageBoxButton.OK,
+            result.FailedCount > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
     }
 
     private static void ShowExportResult(string exportType, ExportResult result)

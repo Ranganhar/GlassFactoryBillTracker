@@ -29,8 +29,9 @@ public partial class MainWindow : Window
         var orderService = new OrderService(attachmentService);
         var exportService = new ExportService(AppRuntimeContext.DbPath);
         var fileDialogService = new FileDialogService();
+        var printService = new PrintService();
 
-        _viewModel = new MainWindowViewModel(customerService, orderService, exportService, fileDialogService);
+        _viewModel = new MainWindowViewModel(customerService, orderService, exportService, fileDialogService, printService);
         DataContext = _viewModel;
     }
 
