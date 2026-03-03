@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Windows;
 using GlassFactory.BillTracker.App.Commands;
 using GlassFactory.BillTracker.App.Models;
 using GlassFactory.BillTracker.App.ViewModels.Base;
@@ -182,6 +183,7 @@ public sealed class OrderEditViewModel : ObservableObject
     public event Action? Saved;
     public event Action? Canceled;
     public event Action? SelectAttachmentRequested;
+    public event Action<string, int?>? ValidationFailed;
 
     public OrderEditViewModel(IReadOnlyList<Customer> customers, string orderNo, Order? existing = null)
     {
@@ -312,34 +314,38 @@ public sealed class OrderEditViewModel : ObservableObject
 
         if (SelectedCustomer is null)
         {
-            throw new InvalidOperationException("必须选择客户。");
+            MessageBox.Show("请选择客户", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            ValidationFailed?.Invoke("Customer", null);
+            return;
         }
 
         if (Items.Count == 0)
         {
-            throw new InvalidOperationException("至少需要一条订单明细。");
+            MessageBox.Show("至少需要一条订单明细。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
 
-        foreach (var row in Items)
+        for (var i = 0; i < Items.Count; i++)
         {
+            var row = Items[i];
+
             if (row.GlassLengthMm <= 0 || row.GlassWidthMm <= 0 || row.Quantity <= 0)
             {
-                throw new InvalidOperationException("明细的长/宽/数量必须大于0。");
+                MessageBox.Show("明细的长/宽/数量必须大于0。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
 
             if (string.IsNullOrWhiteSpace(row.Model))
             {
-                throw new InvalidOperationException("明细型号不能为空。");
+                MessageBox.Show("请填写型号", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                ValidationFailed?.Invoke("Model", i);
+                return;
             }
 
             if (row.GlassUnitPricePerM2 < 0 || row.HoleFee < 0 || row.OtherFee < 0)
             {
-                throw new InvalidOperationException("明细单价与费用不能为负数。");
-            }
-
-            if (string.IsNullOrWhiteSpace(row.WireType))
-            {
-                throw new InvalidOperationException("丝织品类型不能为空。");
+                MessageBox.Show("明细单价与费用不能为负数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
         }
 

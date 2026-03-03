@@ -269,8 +269,8 @@ public sealed class MainWindowViewModel : ObservableObject
         SelectAllOrdersCommand = new RelayCommand(SelectAllCurrentResult);
         ClearOrderSelectionCommand = new RelayCommand(ClearSelection);
         ExportSelectedCommand = new RelayCommand(() => ExecuteUiAction(() => ExportExcelAsync(exportSelectedOnly: true), "导出选中订单"), () => SelectedOrderIds.Count > 0);
-        PrintSelectedCommand = new RelayCommand(() => ExecuteUiAction(PrintSelectedAsync, "打印选中订单"), () => SelectedOrderIds.Count > 0);
-        DeleteSelectedOrdersCommand = new RelayCommand(() => ExecuteUiAction(DeleteSelectedOrdersAsync, "删除选中订单"), () => SelectedOrderIds.Count > 0);
+        PrintSelectedCommand = new RelayCommand(() => ExecuteUiAction(PrintSelectedAsync, "打印选中订单"));
+        DeleteSelectedOrdersCommand = new RelayCommand(() => ExecuteUiAction(DeleteSelectedOrdersAsync, "删除选中订单"));
 
         AddCustomerCommand = new RelayCommand(() => ExecuteUiAction(() => OpenCustomerDialogAsync(null), "新增客户"));
         EditCustomerCommand = new RelayCommand(() => ExecuteUiAction(EditSelectedCustomerAsync, "编辑客户"));
@@ -1120,7 +1120,7 @@ public sealed class MainWindowViewModel : ObservableObject
         var selectedIds = SelectedOrderIds.Where(x => x != Guid.Empty).Distinct().ToList();
         if (selectedIds.Count == 0)
         {
-            MessageBox.Show("请先勾选要打印的订单。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("请先选择要打印的订单", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1223,6 +1223,15 @@ public sealed class MainWindowViewModel : ObservableObject
         catch (Exception ex)
         {
             Log.Error(ex, "{ActionName}发生未处理异常", actionName);
+            if (actionName == "打印选中订单")
+            {
+                var logPath = string.IsNullOrWhiteSpace(AppRuntimeContext.DataDir)
+                    ? "(logs path unavailable)"
+                    : Path.Combine(AppRuntimeContext.DataDir, "logs", "app.log");
+                MessageBox.Show($"打印失败：{ex.Message}\n日志路径：{logPath}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             MessageBox.Show($"{actionName}失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

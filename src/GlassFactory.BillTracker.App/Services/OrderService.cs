@@ -547,10 +547,6 @@ public sealed class OrderService : IOrderService
             throw new InvalidOperationException("明细中的单价与费用不能为负数。");
         }
 
-        if (string.IsNullOrWhiteSpace(item.WireType))
-        {
-            throw new InvalidOperationException("明细中的丝织品类型不能为空。");
-        }
     }
 
     private static IQueryable<Order> ApplySorting(IQueryable<Order> query, string sortBy, bool desc)

@@ -45,7 +45,7 @@
                 </StackPanel>
 
                 <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="客户*" />
-                <ComboBox Grid.Row="1" Grid.Column="1"
+                <ComboBox x:Name="CustomerComboBox" Grid.Row="1" Grid.Column="1"
                           DisplayMemberPath="Name"
                           ItemsSource="{Binding Customers}"
                           SelectedItem="{Binding SelectedCustomer}"
@@ -105,7 +105,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <DataGrid Grid.Row="0"
+            <DataGrid x:Name="ItemsDataGrid" Grid.Row="0"
                       ItemsSource="{Binding Items}"
                       SelectedItem="{Binding SelectedItem}"
                       AutoGenerateColumns="False"
@@ -117,7 +117,6 @@
                     <DataGridTextColumn Header="宽(mm)" Binding="{Binding GlassWidthMm, UpdateSourceTrigger=PropertyChanged}" Width="90" />
                     <DataGridTextColumn Header="数量" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" Width="70" />
                     <DataGridTextColumn Header="玻璃单价(元/㎡)" Binding="{Binding GlassUnitPricePerM2, UpdateSourceTrigger=PropertyChanged}" Width="130" />
-                    <DataGridTextColumn Header="丝织品类型" Binding="{Binding WireType, UpdateSourceTrigger=PropertyChanged}" Width="110" />
                     <DataGridTextColumn Header="打孔费" Binding="{Binding HoleFee, UpdateSourceTrigger=PropertyChanged}" Width="110" />
                     <DataGridTextColumn Header="其他费用" Binding="{Binding OtherFee, UpdateSourceTrigger=PropertyChanged}" Width="100" />
                     <DataGridTextColumn Header="金额" Binding="{Binding Amount, StringFormat=F4}" IsReadOnly="True" Width="110" />
