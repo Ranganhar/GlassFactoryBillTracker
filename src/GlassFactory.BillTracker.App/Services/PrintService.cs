@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Markup;
 using System.Windows.Media;
 using GlassFactory.BillTracker.App.Models;
 using GlassFactory.BillTracker.Domain.Services;
