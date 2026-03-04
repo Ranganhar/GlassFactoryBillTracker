@@ -54,6 +54,7 @@
 .
 ├─ src/
 │  ├─ GlassFactory.BillTracker.App/
+│  ├─ GlassFactory.BillTracker.App.Win7/
 │  ├─ GlassFactory.BillTracker.Domain/
 │  ├─ GlassFactory.BillTracker.Data/
 │  └─ GlassFactory.BillTracker.Infrastructure/
@@ -63,7 +64,10 @@
 │  └─ GlassFactory.BillTracker.DbSmokeTest/
 ├─ scripts/
 │  ├─ build_windows.ps1
-│  └─ publish_smoke_check.ps1
+│  ├─ build_windows7.ps1
+│  ├─ publish_smoke_check.ps1
+│  ├─ collect_logs.ps1
+│  └─ repro_collect.ps1
 ├─ dist/                  # Windows 发布后产物目录
 ├─ artifacts/             # 中间发布目录
 ├─ GlassFactory.BillTracker.sln
@@ -105,6 +109,16 @@
 - logs/（app.log）
 
 ## 7. Windows 运行与发布
+### 7.0 双版本发布策略
+- Win10/11 版本（现有）
+  - Runtime: .NET 8 self-contained
+  - Script: scripts/build_windows.ps1
+  - Dist: dist/win-x64 or dist/win-arm64
+- Win7 x64 版本（新增）
+  - Runtime: .NET Framework 4.8 WPF
+  - Script: scripts/build_windows7.ps1
+  - Dist: dist/win7-x64
+
 ### 7.1 一键发布
 在仓库根目录执行：
 
@@ -129,13 +143,27 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1 -Configurat
 ### 7.2 固定产物路径
 - dist/win-x64/GlassFactory.BillTracker.App.exe
 - dist/win-arm64/GlassFactory.BillTracker.App.exe
+- dist/win7-x64/GlassFactory.BillTracker.App.Win7.exe
 
-### 7.3 首次运行注意事项
+### 7.3 Win7 x64 构建
+Run on Windows 7 x64 shell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows7.ps1
+```
+
+Win7 prerequisites:
+- .NET Framework 4.8 Developer Pack
+- Visual Studio Build Tools with MSBuild and .NET desktop workload
+
+If prerequisites are missing, script prints an explicit install instruction.
+
+### 7.4 首次运行注意事项
 - 首次启动会要求选择 data_dir
 - 建议使用 D:\BillTrackerData 或 E:\BillTrackerData
 - 不建议长期放在系统盘根目录
 
-### 7.4 发布后快速自检
+### 7.5 发布后快速自检
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\publish_smoke_check.ps1
@@ -250,6 +278,10 @@ dotnet run --project tools/GlassFactory.BillTracker.DbSmokeTest/GlassFactory.Bil
 ## 11. 常见问题排查
 - PowerShell 脚本无法执行
   - 使用 ExecutionPolicy Bypass 参数执行脚本
+- Win7 script fails with missing MSBuild
+  - Install Visual Studio Build Tools and .NET desktop build workload
+- Win7 script fails with missing .NET Framework 4.8
+  - Install .NET Framework 4.8 Developer Pack
 - SmartScreen 拦截 EXE
   - 点击“更多信息 -> 仍要运行”
 - 无法写入 data_dir

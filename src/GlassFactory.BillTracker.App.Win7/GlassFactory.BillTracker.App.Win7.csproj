@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>GlassFactory.BillTracker.App.Win7</RootNamespace>
+    <AssemblyName>GlassFactory.BillTracker.App.Win7</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GlassFactory.BillTracker.Domain\GlassFactory.BillTracker.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Data.SQLite.Core" />
+    <PackageReference Include="ClosedXML" />
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+</Project>
