@@ -161,6 +161,10 @@ If prerequisites are missing, script prints an explicit install instruction.
 ### 7.3.1 Windows 7 note
 - The script always prints a startup header with timestamp, PowerShell version, OS version, and current directory.
 - The script prints step markers for every stage and never waits for interactive input.
+- The script prints full failure diagnostics: exception type, message, inner exception, stack trace, and failing script line/command.
+- The script resolves script paths with MyInvocation for PowerShell 2.0 compatibility.
+- The main application target net8.0-windows requires Windows 10/11 for supported build and runtime.
+- If dotnet is missing on Windows 7, the script exits with code 2 and prints a clean action plan.
 - If dotnet is missing, the script exits with code 2 and prints installation guidance.
 - If the detected target framework is unsupported on Windows 7 (for example net8.0-windows), the script exits with code 3 and prints clear next steps:
   - Build on Windows 10/11 with scripts/build_windows.ps1 (recommended)
