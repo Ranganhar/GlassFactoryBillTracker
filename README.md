@@ -158,6 +158,15 @@ Win7 prerequisites:
 
 If prerequisites are missing, script prints an explicit install instruction.
 
+### 7.3.1 Windows 7 note
+- The script always prints a startup header with timestamp, PowerShell version, OS version, and current directory.
+- The script prints step markers for every stage and never waits for interactive input.
+- If dotnet is missing, the script exits with code 2 and prints installation guidance.
+- If the detected target framework is unsupported on Windows 7 (for example net8.0-windows), the script exits with code 3 and prints clear next steps:
+  - Build on Windows 10/11 with scripts/build_windows.ps1 (recommended)
+  - Retarget to a Windows 7 compatible framework (for example net48) and adjust dependencies
+- On success, the script prints the final executable path in dist/win7-x64.
+
 ### 7.4 首次运行注意事项
 - 首次启动会要求选择 data_dir
 - 建议使用 D:\BillTrackerData 或 E:\BillTrackerData
