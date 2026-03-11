@@ -237,15 +237,15 @@ public sealed class ExportService : IExportService
 
             sheet.Cell(row, 1).Value = orderNoMap.TryGetValue(item.OrderId, out var orderNo) ? orderNo : string.Empty;
             sheet.Cell(row, 2).Value = item.Model;
-            sheet.Cell(row, 3).Value = item.GlassLengthMm;
-            sheet.Cell(row, 4).Value = item.GlassWidthMm;
+            sheet.Cell(row, 3).Value = Math.Round(item.GlassLengthMm, 1, MidpointRounding.AwayFromZero);
+            sheet.Cell(row, 4).Value = Math.Round(item.GlassWidthMm, 1, MidpointRounding.AwayFromZero);
             sheet.Cell(row, 5).Value = item.Quantity;
-            sheet.Cell(row, 6).Value = OrderAmountCalculator.Round(item.GlassUnitPricePerM2);
+            sheet.Cell(row, 6).Value = Math.Round(item.GlassUnitPricePerM2, 0, MidpointRounding.AwayFromZero);
             sheet.Cell(row, 7).Value = Math.Round(area, 6, MidpointRounding.AwayFromZero);
-            sheet.Cell(row, 8).Value = glassCost;
+            sheet.Cell(row, 8).Value = OrderAmountCalculator.Round(glassCost);
             sheet.Cell(row, 9).Value = item.WireType;
-            sheet.Cell(row, 10).Value = OrderAmountCalculator.Round(item.HoleFee);
-            sheet.Cell(row, 11).Value = OrderAmountCalculator.Round(item.OtherFee);
+            sheet.Cell(row, 10).Value = Math.Round(item.HoleFee, 0, MidpointRounding.AwayFromZero);
+            sheet.Cell(row, 11).Value = Math.Round(item.OtherFee, 0, MidpointRounding.AwayFromZero);
             sheet.Cell(row, 12).Value = amount;
             sheet.Cell(row, 13).Value = item.Note ?? string.Empty;
 
@@ -253,6 +253,12 @@ public sealed class ExportService : IExportService
         }
 
         ApplySheetStyle(sheet, row - 1, 13, amountColumns: new[] { 6, 8, 10, 11, 12 }, areaColumns: new[] { 7 });
+        sheet.Column(3).Style.NumberFormat.Format = "0.0";
+        sheet.Column(4).Style.NumberFormat.Format = "0.0";
+        sheet.Column(5).Style.NumberFormat.Format = "0";
+        sheet.Column(6).Style.NumberFormat.Format = "0";
+        sheet.Column(10).Style.NumberFormat.Format = "0";
+        sheet.Column(11).Style.NumberFormat.Format = "0";
     }
 
     private static void WriteByCustomerSheet(IXLWorksheet sheet, IReadOnlyList<Order> orders)
@@ -328,7 +334,7 @@ public sealed class ExportService : IExportService
         {
             foreach (var col in amountColumns)
             {
-                sheet.Column(col).Style.NumberFormat.Format = "0.0000";
+                sheet.Column(col).Style.NumberFormat.Format = "0.00";
             }
         }
 

@@ -99,6 +99,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <DataGrid x:Name="ItemsDataGrid" Grid.Row="0"
@@ -107,28 +108,66 @@
                       AutoGenerateColumns="False"
                       CanUserAddRows="False"
                       CanUserDeleteRows="False">
+                <DataGrid.Resources>
+                    <Style x:Key="RightAlignedDisplayCellStyle" TargetType="TextBlock">
+                        <Setter Property="HorizontalAlignment" Value="Right" />
+                        <Setter Property="TextAlignment" Value="Right" />
+                    </Style>
+                    <Style x:Key="RightAlignedEditingStyle" TargetType="TextBox">
+                        <Setter Property="HorizontalContentAlignment" Value="Right" />
+                        <Setter Property="TextAlignment" Value="Right" />
+                    </Style>
+                    <Style x:Key="ModelEditingStyle" TargetType="TextBox">
+                        <Setter Property="MaxLength" Value="13" />
+                    </Style>
+                    <Style x:Key="OneDecimalEditingStyle" TargetType="TextBox" BasedOn="{StaticResource RightAlignedEditingStyle}">
+                        <Setter Property="MaxLength" Value="5" />
+                    </Style>
+                    <Style x:Key="IntegerEditingStyle" TargetType="TextBox" BasedOn="{StaticResource RightAlignedEditingStyle}">
+                        <Setter Property="MaxLength" Value="4" />
+                    </Style>
+                </DataGrid.Resources>
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="ContextMenu">
+                            <Setter.Value>
+                                <ContextMenu>
+                                    <MenuItem Header="复制行"
+                                              Command="{Binding DataContext.CopySelectedItemCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                              CommandParameter="{Binding}" />
+                                </ContextMenu>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGrid.RowStyle>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="型号" Binding="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Width="110" />
-                    <DataGridTextColumn Header="长(mm)" Binding="{Binding GlassLengthMm, UpdateSourceTrigger=PropertyChanged}" Width="90" />
-                    <DataGridTextColumn Header="宽(mm)" Binding="{Binding GlassWidthMm, UpdateSourceTrigger=PropertyChanged}" Width="90" />
-                    <DataGridTextColumn Header="数量" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" Width="70" />
-                    <DataGridTextColumn Header="玻璃单价(元/㎡)" Binding="{Binding GlassUnitPricePerM2, UpdateSourceTrigger=PropertyChanged}" Width="130" />
-                    <DataGridTextColumn Header="打孔费" Binding="{Binding HoleFee, UpdateSourceTrigger=PropertyChanged}" Width="110" />
-                    <DataGridTextColumn Header="其他费用" Binding="{Binding OtherFee, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-                    <DataGridTextColumn Header="金额" Binding="{Binding Amount, StringFormat=F4}" IsReadOnly="True" Width="110" />
-                    <DataGridTextColumn Header="备注" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                    <DataGridTextColumn Header="型号" Binding="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Width="90" MinWidth="80" MaxWidth="95" EditingElementStyle="{StaticResource ModelEditingStyle}" />
+                    <DataGridTextColumn Header="长(mm)" Binding="{Binding GlassLengthMm, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}" Width="70" MinWidth="65" MaxWidth="75" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource OneDecimalEditingStyle}" />
+                    <DataGridTextColumn Header="宽(mm)" Binding="{Binding GlassWidthMm, UpdateSourceTrigger=PropertyChanged, StringFormat=F1}" Width="70" MinWidth="65" MaxWidth="75" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource OneDecimalEditingStyle}" />
+                    <DataGridTextColumn Header="数量" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged, StringFormat=F0}" Width="62" MinWidth="58" MaxWidth="66" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
+                    <DataGridTextColumn Header="玻璃单价" Binding="{Binding GlassUnitPricePerM2, UpdateSourceTrigger=PropertyChanged, StringFormat=F0}" Width="78" MinWidth="74" MaxWidth="84" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
+                    <DataGridTextColumn Header="打孔费" Binding="{Binding HoleFee, UpdateSourceTrigger=PropertyChanged, StringFormat=F0}" Width="68" MinWidth="64" MaxWidth="72" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
+                    <DataGridTextColumn Header="其他费" Binding="{Binding OtherFee, UpdateSourceTrigger=PropertyChanged, StringFormat=F0}" Width="68" MinWidth="64" MaxWidth="72" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
+                    <DataGridTextColumn Header="金额" Binding="{Binding Amount, StringFormat=F2}" IsReadOnly="True" Width="90" MinWidth="86" MaxWidth="95" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" />
+                    <DataGridTextColumn Header="备注" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="*" MinWidth="360" />
                 </DataGrid.Columns>
             </DataGrid>
 
-            <DockPanel Grid.Row="1" Margin="0,10,0,0">
+            <Grid Grid.Row="1" Margin="0,10,0,6">
+                <TextBlock Text="{Binding TotalAmount, StringFormat=合计：{0:F2}}"
+                           HorizontalAlignment="Right"
+                           FontWeight="Bold"
+                           FontSize="15" />
+            </Grid>
+
+            <DockPanel Grid.Row="2" Margin="0,4,0,0">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <Button Content="新增明细行" Command="{Binding AddItemCommand}" Width="110" Margin="0,0,8,0" />
+                    <Button Content="复制行" Command="{Binding CopySelectedItemCommand}" Width="90" Margin="0,0,8,0" />
                     <Button Content="删除选中行" Command="{Binding RemoveSelectedItemCommand}" Width="110" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
-                    <TextBlock Text="总金额：" VerticalAlignment="Center" FontWeight="Bold" />
-                    <TextBox Width="130" IsReadOnly="True" Text="{Binding TotalAmount, Mode=OneWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F4}" Margin="4,0,12,0" />
                     <Button Content="保存" Width="110" Command="{Binding SaveCommand}" Margin="0,0,8,0" />
                     <Button Content="取消" Width="90" Command="{Binding CancelCommand}" />
                 </StackPanel>

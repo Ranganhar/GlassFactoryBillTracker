@@ -6,7 +6,7 @@ namespace GlassFactory.BillTracker.Tests;
 public class OrderAmountCalculatorTests
 {
     [Fact]
-    public void CalculateAmountAndTotal_ShouldUseMmToM2AndRoundTo4Digits_AwayFromZero()
+    public void CalculateAmountAndTotal_ShouldUseMmToM2AndRoundTo2Digits_AwayFromZero()
     {
         var item1 = new OrderItem
         {
@@ -35,13 +35,13 @@ public class OrderAmountCalculatorTests
         var amount1 = OrderAmountCalculator.CalculateAmount(item1);
         var amount2 = OrderAmountCalculator.CalculateAmount(item2);
 
-        Assert.Equal(223.5542m, amount1);
-        Assert.Equal(362.5551m, amount2);
+        Assert.Equal(223.56m, amount1);
+        Assert.Equal(362.56m, amount2);
 
         var total = OrderAmountCalculator.CalculateOrderTotal(new[] { item1, item2 });
-        Assert.Equal(586.1093m, total);
+        Assert.Equal(586.12m, total);
 
         var rounded = OrderAmountCalculator.Round(1.23445m);
-        Assert.Equal(1.2345m, rounded);
+        Assert.Equal(1.23m, rounded);
     }
 }

@@ -37,7 +37,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _glassLengthMm;
         set
         {
-            if (SetProperty(ref _glassLengthMm, value))
+            var normalized = NormalizeLengthOrWidth(value);
+            if (SetProperty(ref _glassLengthMm, normalized))
             {
                 Recalculate();
             }
@@ -49,7 +50,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _glassWidthMm;
         set
         {
-            if (SetProperty(ref _glassWidthMm, value))
+            var normalized = NormalizeLengthOrWidth(value);
+            if (SetProperty(ref _glassWidthMm, normalized))
             {
                 Recalculate();
             }
@@ -73,7 +75,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _glassUnitPricePerM2;
         set
         {
-            if (SetProperty(ref _glassUnitPricePerM2, value))
+            var normalized = NormalizeIntegerDecimal(value);
+            if (SetProperty(ref _glassUnitPricePerM2, normalized))
             {
                 Recalculate();
             }
@@ -97,7 +100,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _model;
         set
         {
-            if (SetProperty(ref _model, value))
+            var normalized = NormalizeModel(value);
+            if (SetProperty(ref _model, normalized))
             {
                 Recalculate();
             }
@@ -121,7 +125,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _otherFee;
         set
         {
-            if (SetProperty(ref _otherFee, value))
+            var normalized = NormalizeIntegerDecimal(value);
+            if (SetProperty(ref _otherFee, normalized))
             {
                 Recalculate();
             }
@@ -133,7 +138,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _holeFee;
         set
         {
-            if (SetProperty(ref _holeFee, value))
+            var normalized = NormalizeIntegerDecimal(value);
+            if (SetProperty(ref _holeFee, normalized))
             {
                 Recalculate();
             }
@@ -194,10 +200,44 @@ public sealed class OrderItemRowViewModel : ObservableObject
         return row;
     }
 
+    public OrderItemRowViewModel CloneForCopy(Action? recalculateCallback = null)
+    {
+        return new OrderItemRowViewModel(recalculateCallback)
+        {
+            Id = Guid.Empty,
+            GlassLengthMm = GlassLengthMm,
+            GlassWidthMm = GlassWidthMm,
+            Quantity = Quantity,
+            GlassUnitPricePerM2 = GlassUnitPricePerM2,
+            Model = Model,
+            WireType = WireType,
+            WireUnitPrice = WireUnitPrice,
+            HoleFee = HoleFee,
+            OtherFee = OtherFee,
+            Note = Note
+        };
+    }
+
     public void Recalculate()
     {
         var snapshot = ToEntity();
         Amount = snapshot.Amount;
         _recalculateCallback?.Invoke();
+    }
+
+    private static decimal NormalizeLengthOrWidth(decimal value)
+    {
+        return Math.Round(value, 1, MidpointRounding.AwayFromZero);
+    }
+
+    private static decimal NormalizeIntegerDecimal(decimal value)
+    {
+        return Math.Round(value, 0, MidpointRounding.AwayFromZero);
+    }
+
+    private static string NormalizeModel(string? value)
+    {
+        var trimmed = (value ?? string.Empty).Trim();
+        return trimmed.Length <= 13 ? trimmed : trimmed[..13];
     }
 }

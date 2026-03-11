@@ -1,8 +1,9 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Diagnostics;
+using System.Windows.Controls;
 using GlassFactory.BillTracker.App.Models;
 using GlassFactory.BillTracker.Domain.Services;
 
@@ -33,21 +34,19 @@ public sealed class PrintService : IPrintService
                 Height = pageHeight,
                 Background = Brushes.White
             };
-
-            var stack = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                Width = pageWidth,
-                Height = pageHeight
-            };
+            var slotHeight = MmToDip(copyHeightMm);
+            var generatedCopies = 0;
 
             for (var i = 0; i < copiesPerPage; i++)
             {
-                var copyPanel = CreateBillCopyPanel(order, options, pageWidth, MmToDip(copyHeightMm), isDotMatrix: true);
-                stack.Children.Add(copyPanel);
+                var copyPanel = CreateBillCopyPanel(order, options, pageWidth, slotHeight, isDotMatrix: true);
+                FixedPage.SetLeft(copyPanel, 0d);
+                FixedPage.SetTop(copyPanel, i * slotHeight);
+                fixedPage.Children.Add(copyPanel);
+                generatedCopies++;
             }
 
-            fixedPage.Children.Add(stack);
+            ValidateDotMatrixBlockCount(copiesPerPage, generatedCopies, options.DotMatrixHeightMode);
             ((IAddChild)pageContent).AddChild(fixedPage);
             document.Pages.Add(pageContent);
         }
@@ -91,6 +90,7 @@ public sealed class PrintService : IPrintService
     {
         options ??= new PrintBillOptions();
         order ??= new OrderExportDto();
+        var baseFontSize = Math.Max(8d, options.FontSize);
 
         var outerBorder = new Border
         {
@@ -112,7 +112,7 @@ public sealed class PrintService : IPrintService
         {
             Text = string.IsNullOrWhiteSpace(options.HeaderText) ? "亿达夹丝玻璃" : options.HeaderText,
             FontWeight = FontWeights.Bold,
-            FontSize = isDotMatrix ? 16 : 22,
+            FontSize = isDotMatrix ? baseFontSize + 4 : baseFontSize + 6,
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 8)
         };
@@ -123,7 +123,7 @@ public sealed class PrintService : IPrintService
         var meta = new TextBlock
         {
             Text = $"订单号: {order.OrderNo ?? string.Empty}    日期: {order.DateTime:yyyy-MM-dd HH:mm:ss}    客户: {order.CustomerName ?? string.Empty}    电话: {contactPhone}",
-            FontSize = isDotMatrix ? 11 : 13,
+            FontSize = baseFontSize,
             Margin = new Thickness(0, 0, 0, 8),
             TextWrapping = TextWrapping.Wrap
         };
@@ -131,20 +131,17 @@ public sealed class PrintService : IPrintService
         root.Children.Add(meta);
 
         var table = new Grid { Margin = new Thickness(0, 2, 0, 6) };
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.8, GridUnitType.Star) });
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.8, GridUnitType.Star) });
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.6, GridUnitType.Star) });
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.9, GridUnitType.Star) });
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.8, GridUnitType.Star) });
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.8, GridUnitType.Star) });
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.9, GridUnitType.Star) });
+        var contentWidth = Math.Max(100d, pageWidth - 24d);
+        foreach (var width in BuildColumnWidths(contentWidth))
+        {
+            table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
+        }
 
-        var headers = new[] { "型号", "长", "宽", "数量", "单价", "打孔费", "其他费", "金额" };
+        var headers = new[] { "型号", "长", "宽", "数量", "单价", "打孔", "其他", "金额", "备注" };
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (var col = 0; col < headers.Length; col++)
         {
-            var cell = CreateCell(headers[col], bold: true, isDotMatrix);
+            var cell = CreateCell(headers[col], bold: true, isDotMatrix, baseFontSize, TextAlignment.Center, wrap: false, trim: true);
             Grid.SetRow(cell, 0);
             Grid.SetColumn(cell, col);
             table.Children.Add(cell);
@@ -162,18 +159,21 @@ public sealed class PrintService : IPrintService
             var values = new[]
             {
                 item.Model ?? string.Empty,
-                item.GlassLengthMm.ToString("F0"),
-                item.GlassWidthMm.ToString("F0"),
+                item.GlassLengthMm.ToString("F1"),
+                item.GlassWidthMm.ToString("F1"),
                 item.Quantity.ToString(),
-                item.GlassUnitPricePerM2.ToString("F4"),
-                item.HoleFee.ToString("F4"),
-                item.OtherFee.ToString("F4"),
-                item.Amount.ToString("F4")
+                Math.Round(item.GlassUnitPricePerM2, 0, MidpointRounding.AwayFromZero).ToString("F0"),
+                Math.Round(item.HoleFee, 0, MidpointRounding.AwayFromZero).ToString("F0"),
+                Math.Round(item.OtherFee, 0, MidpointRounding.AwayFromZero).ToString("F0"),
+                OrderAmountCalculator.Round(item.Amount).ToString("F2"),
+                item.Note ?? string.Empty
             };
 
             for (var col = 0; col < values.Length; col++)
             {
-                var cell = CreateCell(values[col], bold: false, isDotMatrix);
+                var alignment = col is >= 1 and <= 7 ? TextAlignment.Right : TextAlignment.Left;
+                var trim = col == 8;
+                var cell = CreateCell(values[col], bold: false, isDotMatrix, baseFontSize, alignment, wrap: !trim, trim: trim);
                 Grid.SetRow(cell, rowIndex);
                 Grid.SetColumn(cell, col);
                 table.Children.Add(cell);
@@ -182,25 +182,21 @@ public sealed class PrintService : IPrintService
             rowIndex++;
         }
 
+        table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var totalCell = CreateCell($"合计：{OrderAmountCalculator.Round(order.TotalAmount):F2}", bold: true, isDotMatrix, baseFontSize, TextAlignment.Right, wrap: false, trim: false);
+        Grid.SetRow(totalCell, rowIndex);
+        Grid.SetColumn(totalCell, 0);
+        Grid.SetColumnSpan(totalCell, headers.Length);
+        table.Children.Add(totalCell);
+
         Grid.SetRow(table, 2);
         root.Children.Add(table);
-
-        var footer = new TextBlock
-        {
-            Text = $"合计金额: {OrderAmountCalculator.Round(order.TotalAmount):F4}      签字: __________________",
-            FontWeight = FontWeights.Bold,
-            FontSize = isDotMatrix ? 12 : 14,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 4, 0, 0)
-        };
-        Grid.SetRow(footer, 3);
-        root.Children.Add(footer);
 
         outerBorder.Child = root;
         return outerBorder;
     }
 
-    private static Border CreateCell(string text, bool bold, bool isDotMatrix)
+    private static Border CreateCell(string text, bool bold, bool isDotMatrix, double baseFontSize, TextAlignment alignment, bool wrap, bool trim)
     {
         return new Border
         {
@@ -211,10 +207,19 @@ public sealed class PrintService : IPrintService
             {
                 Text = text,
                 FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
-                FontSize = isDotMatrix ? 10 : 11,
-                TextWrapping = TextWrapping.Wrap
+                FontSize = isDotMatrix ? Math.Max(8d, baseFontSize - 1) : baseFontSize,
+                TextAlignment = alignment,
+                TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap,
+                TextTrimming = trim ? TextTrimming.CharacterEllipsis : TextTrimming.None
             }
         };
+    }
+
+    private static IReadOnlyList<double> BuildColumnWidths(double contentWidth)
+    {
+        var weights = new[] { 1.35d, 0.75d, 0.75d, 0.65d, 0.85d, 0.75d, 0.75d, 0.9d, 1.3d };
+        var sum = weights.Sum();
+        return weights.Select(x => contentWidth * x / sum).ToArray();
     }
 
     private static double MmToDip(double mm)
@@ -240,5 +245,12 @@ public sealed class PrintService : IPrintService
             DotMatrixHeightMode.Half => 2,
             _ => 3
         };
+    }
+
+    [Conditional("DEBUG")]
+    private static void ValidateDotMatrixBlockCount(int expected, int actual, DotMatrixHeightMode mode)
+    {
+        Debug.Assert(expected == actual, $"Dot-matrix visual block mismatch. Mode={mode}, expected={expected}, actual={actual}.");
+        Debug.WriteLine($"Dot-matrix visual block count checked. Mode={mode}, expected={expected}, actual={actual}.");
     }
 }

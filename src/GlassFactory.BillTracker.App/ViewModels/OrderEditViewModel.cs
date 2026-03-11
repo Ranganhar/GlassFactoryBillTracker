@@ -156,6 +156,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
     public RelayCommand AddItemCommand { get; }
     public RelayCommand RemoveSelectedItemCommand { get; }
+    public RelayCommand<OrderItemRowViewModel> CopySelectedItemCommand { get; }
     public RelayCommand SaveCommand { get; }
     public RelayCommand CancelCommand { get; }
     public bool IsSaving
@@ -219,6 +220,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
         AddItemCommand = new RelayCommand(AddItem);
         RemoveSelectedItemCommand = new RelayCommand(RemoveSelectedItem);
+        CopySelectedItemCommand = new RelayCommand<OrderItemRowViewModel>(CopySelectedItem);
         SaveCommand = new RelayCommand(OnSave, () => !IsSaving);
         CancelCommand = new RelayCommand(() => Canceled?.Invoke());
         ChooseAttachmentCommand = new RelayCommand(() => SelectAttachmentRequested?.Invoke());
@@ -286,6 +288,28 @@ public sealed class OrderEditViewModel : ObservableObject
         RecalculateTotal();
     }
 
+    private void CopySelectedItem(OrderItemRowViewModel? sourceRow)
+    {
+        var rowToCopy = sourceRow ?? SelectedItem;
+        if (rowToCopy is null)
+        {
+            MessageBox.Show("请先选择要复制的明细行。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var index = Items.IndexOf(rowToCopy);
+        if (index < 0)
+        {
+            MessageBox.Show("无法定位选中的明细行。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var copied = rowToCopy.CloneForCopy(RecalculateTotal);
+        Items.Insert(index + 1, copied);
+        SelectedItem = copied;
+        RecalculateTotal();
+    }
+
     private void RemoveAttachmentAction()
     {
         AttachmentSourcePath = null;
@@ -335,6 +359,13 @@ public sealed class OrderEditViewModel : ObservableObject
                 return;
             }
 
+            if (row.Model.Length > 13)
+            {
+                MessageBox.Show("型号最多13个字符。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                ValidationFailed?.Invoke("Model", i);
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(row.Model))
             {
                 MessageBox.Show("请填写型号", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -347,9 +378,31 @@ public sealed class OrderEditViewModel : ObservableObject
                 MessageBox.Show("明细单价与费用不能为负数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+
+            if (!IsIntegerValue(row.GlassUnitPricePerM2) || !IsIntegerValue(row.HoleFee) || !IsIntegerValue(row.OtherFee))
+            {
+                MessageBox.Show("单价、打孔费、其他费用必须为整数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (!HasOneDecimal(row.GlassLengthMm) || !HasOneDecimal(row.GlassWidthMm))
+            {
+                MessageBox.Show("长和宽最多保留1位小数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
         }
 
         Saved?.Invoke();
+    }
+
+    private static bool IsIntegerValue(decimal value)
+    {
+        return decimal.Truncate(value) == value;
+    }
+
+    private static bool HasOneDecimal(decimal value)
+    {
+        return Math.Round(value, 1, MidpointRounding.AwayFromZero) == value;
     }
 
     private DateTime BuildDateTime()

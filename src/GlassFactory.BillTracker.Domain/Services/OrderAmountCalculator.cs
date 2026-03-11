@@ -6,15 +6,13 @@ public static class OrderAmountCalculator
 {
     public static decimal CalculateAreaM2(decimal glassLengthMm, decimal glassWidthMm)
     {
-        var area = (glassLengthMm / 1000m) * (glassWidthMm / 1000m);
-        return Round(area);
+        return (glassLengthMm / 1000m) * (glassWidthMm / 1000m);
     }
 
     public static decimal CalculateGlassCost(OrderItem item)
     {
         var areaM2 = CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm);
-        var glassCost = areaM2 * item.Quantity * item.GlassUnitPricePerM2;
-        return Round(glassCost);
+        return areaM2 * item.Quantity * item.GlassUnitPricePerM2;
     }
 
     public static decimal CalculateAmount(OrderItem item)
@@ -46,6 +44,6 @@ public static class OrderAmountCalculator
 
     public static decimal Round(decimal value)
     {
-        return Math.Round(value, 4, MidpointRounding.AwayFromZero);
+        return Math.Round(value, 2, MidpointRounding.AwayFromZero);
     }
 }

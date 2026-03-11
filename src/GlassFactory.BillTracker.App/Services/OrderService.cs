@@ -94,7 +94,7 @@ public sealed class OrderService : IOrderService
             else
             {
                 var sumScaled = await query.SumAsync(x => (long)(x.TotalAmount * 10000m), cancellationToken);
-                sumTotal = Math.Round(sumScaled / 10000m, 4, MidpointRounding.AwayFromZero);
+                sumTotal = Math.Round(sumScaled / 10000m, 2, MidpointRounding.AwayFromZero);
             }
 
             query = ApplySorting(query, filter.SortBy, filter.SortDescending);
