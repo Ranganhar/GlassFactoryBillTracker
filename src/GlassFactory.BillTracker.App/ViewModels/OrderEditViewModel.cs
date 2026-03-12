@@ -450,6 +450,20 @@ public sealed class OrderEditViewModel : ObservableObject
             }
         }
 
+        var duplicateIds = Items
+            .Select(x => x.Id)
+            .Where(x => x != Guid.Empty)
+            .GroupBy(x => x)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        if (duplicateIds.Count > 0)
+        {
+            MessageBox.Show("明细行存在重复标识，请重新复制后再保存。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         Saved?.Invoke();
     }
 

@@ -705,30 +705,32 @@ public sealed class PrintService : IPrintService
         var contentWidth = Math.Max(80d, pageWidthDip - horizontalMarginsDip);
 
         var widths = new double[headers.Count];
-        var fontScale = Math.Clamp(fontSize / 12d, 0.8d, 1.9d);
-        var minNoteWidth = Math.Max(minNoteWidthDip, 34d * fontScale);
+        var titleWidths = new double[headers.Count];
+        var maxDataWidths = new double[headers.Count];
+
+        var minNoteWidth = Math.Max(32d, minNoteWidthDip);
         var minWidths = new[]
         {
-            36d * fontScale,
-            24d * fontScale,
-            24d * fontScale,
-            22d * fontScale,
-            30d * fontScale,
-            30d * fontScale,
-            30d * fontScale,
-            34d * fontScale,
+            48d,
+            28d,
+            28d,
+            26d,
+            40d,
+            40d,
+            40d,
+            44d,
             minNoteWidth
         };
         var maxWidths = new[]
         {
-            130d * fontScale,
-            72d * fontScale,
-            72d * fontScale,
-            62d * fontScale,
-            92d * fontScale,
-            92d * fontScale,
-            92d * fontScale,
-            98d * fontScale,
+            140d,
+            86d,
+            86d,
+            72d,
+            106d,
+            106d,
+            106d,
+            112d,
             contentWidth
         };
 
@@ -739,7 +741,8 @@ public sealed class PrintService : IPrintService
                 continue;
             }
 
-            var maxTextWidth = MeasureTextWidth(headers[col], typeface, fontSize);
+            var titleWidth = MeasureTextWidth(headers[col], typeface, fontSize);
+            var maxDataWidth = 0d;
             foreach (var row in rows)
             {
                 if (col >= row.Length)
@@ -748,13 +751,15 @@ public sealed class PrintService : IPrintService
                 }
 
                 var valueWidth = MeasureTextWidth(row[col], typeface, fontSize);
-                if (valueWidth > maxTextWidth)
+                if (valueWidth > maxDataWidth)
                 {
-                    maxTextWidth = valueWidth;
+                    maxDataWidth = valueWidth;
                 }
             }
 
-            var measured = maxTextWidth + cellPadding;
+            titleWidths[col] = titleWidth;
+            maxDataWidths[col] = maxDataWidth;
+            var measured = Math.Max(titleWidth, maxDataWidth) + cellPadding;
             widths[col] = Math.Clamp(measured, minWidths[col], maxWidths[col]);
         }
 
@@ -799,8 +804,12 @@ public sealed class PrintService : IPrintService
         var totalWidth = widths.Sum();
         if (totalWidth > contentWidth + 0.1d)
         {
-            widths[noteColumnIndex] = Math.Max(minWidths[noteColumnIndex], widths[noteColumnIndex] - (totalWidth - contentWidth));
+            var overflow = totalWidth - contentWidth;
+            var adjusted = widths[noteColumnIndex] - overflow;
+            widths[noteColumnIndex] = Math.Max(8d, adjusted);
         }
+
+        TraceColumnWidthDetails(headers, titleWidths, maxDataWidths, widths, contentWidth);
 
         return widths;
     }
@@ -890,6 +899,23 @@ public sealed class PrintService : IPrintService
     {
         Debug.WriteLine(
             $"Print pagination: order={orderNo ?? string.Empty}, page={pageNo}, remaining={remainingRows}, rowsOnPage={rowsOnPage}, final={isFinalPage}, usedHeight={usedHeight:F2}, pageLimit={pageHeightLimit:F2}, footerHeight={footerHeight:F2}");
+    }
+
+    [Conditional("DEBUG")]
+    private static void TraceColumnWidthDetails(
+        IReadOnlyList<string> headers,
+        IReadOnlyList<double> titleWidths,
+        IReadOnlyList<double> dataWidths,
+        IReadOnlyList<double> finalWidths,
+        double contentWidth)
+    {
+        for (var i = 0; i < headers.Count; i++)
+        {
+            Debug.WriteLine(
+                $"Print column width: col={i}, header={headers[i]}, titleWidth={titleWidths[i]:F2}, maxDataWidth={dataWidths[i]:F2}, finalWidth={finalWidths[i]:F2}");
+        }
+
+        Debug.WriteLine($"Print column width total: used={finalWidths.Sum():F2}, contentWidth={contentWidth:F2}");
     }
 
 }

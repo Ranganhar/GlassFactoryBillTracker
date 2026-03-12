@@ -41,8 +41,8 @@ public partial class OrderEditWindow : Window
         }
 
         var result = MessageBox.Show(
-            "You have unsaved changes. Save before closing?",
-            "Unsaved Changes",
+            "检测到未保存的修改，是否保存？\n是：保存，否：不保存，取消：继续编辑",
+            "提示",
             MessageBoxButton.YesNoCancel,
             MessageBoxImage.Warning);
 

@@ -353,6 +353,19 @@ public sealed class OrderService : IOrderService
             ValidateItem(item);
         }
 
+        var duplicateIncomingIds = items
+            .Where(x => x.Id != Guid.Empty)
+            .GroupBy(x => x.Id)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        if (duplicateIncomingIds.Count > 0)
+        {
+            Log.Warning("保存订单被拦截：发现重复明细Id，OrderId={OrderId}, DuplicateCount={DuplicateCount}", orderModel.Id, duplicateIncomingIds.Count);
+            throw new InvalidOperationException("订单明细存在重复标识，请重新复制后再保存。");
+        }
+
         await using var db = AppRuntimeContext.CreateDbContext();
         var now = DateTime.Now;
 
