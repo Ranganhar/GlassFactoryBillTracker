@@ -137,7 +137,7 @@ public sealed class PrintService : IPrintService
             table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
         }
 
-        var headers = new[] { "型号", "长", "宽", "数量", "单价", "打孔", "其他", "金额", "备注" };
+        var headers = new[] { "型号", "长", "宽", "数量", "单价", "打孔", "其他费用", "金额", "备注" };
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (var col = 0; col < headers.Length; col++)
         {
