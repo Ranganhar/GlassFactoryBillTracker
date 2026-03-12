@@ -4,6 +4,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Controls;
 using System.Globalization;
+using System.Diagnostics;
 using GlassFactory.BillTracker.App.Models;
 using GlassFactory.BillTracker.Domain.Services;
 
@@ -84,6 +85,7 @@ public sealed class PrintService : IPrintService
         var baseFontSize = Math.Max(8d, options.FontSize);
         var horizontalPadding = isDotMatrix ? 8d : 20d;
         var cellPadding = 6d;
+        const double tableWidthEpsilon = 0.5d;
 
         var outerBorder = new Border
         {
@@ -139,12 +141,14 @@ public sealed class PrintService : IPrintService
         }).ToList();
 
         var table = new Grid { Margin = new Thickness(0, 2, 0, 6) };
-        var contentWidth = Math.Max(120d, pageWidth - (horizontalPadding * 2d));
+        var contentWidth = Math.Max(120d, pageWidth - (horizontalPadding * 2d) - tableWidthEpsilon);
         var columnWidths = BuildColumnWidths(contentWidth, headers, valuesByRow, baseFontSize, cellPadding);
+        TraceTableCoordinates(horizontalPadding, columnWidths, pageWidth, horizontalPadding);
         foreach (var width in columnWidths)
         {
             table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
         }
+        table.Width = Math.Min(contentWidth, columnWidths.Sum());
 
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (var col = 0; col < headers.Length; col++)
@@ -178,8 +182,16 @@ public sealed class PrintService : IPrintService
         Grid.SetColumnSpan(totalCell, headers.Length);
         table.Children.Add(totalCell);
 
-        Grid.SetRow(table, 2);
-        root.Children.Add(table);
+        var tableContainer = new Border
+        {
+            BorderBrush = Brushes.Black,
+            BorderThickness = new Thickness(0.8),
+            SnapsToDevicePixels = true,
+            Child = table
+        };
+
+        Grid.SetRow(tableContainer, 2);
+        root.Children.Add(tableContainer);
 
         outerBorder.Child = root;
         return outerBorder;
@@ -312,6 +324,24 @@ public sealed class PrintService : IPrintService
     private static double MmToDip(double mm)
     {
         return mm * 96d / 25.4d;
+    }
+
+    [Conditional("DEBUG")]
+    private static void TraceTableCoordinates(double tableLeft, IReadOnlyList<double> columnWidths, double pageWidth, double rightMargin)
+    {
+        var boundaries = new List<double>();
+        var runningX = tableLeft;
+        boundaries.Add(runningX);
+
+        foreach (var width in columnWidths)
+        {
+            runningX += width;
+            boundaries.Add(runningX);
+        }
+
+        var tableRightX = runningX;
+        Debug.WriteLine($"Print table layout: pageWidth={pageWidth:F2}, tableLeft={tableLeft:F2}, tableRightX={tableRightX:F2}, rightMargin={rightMargin:F2}, availableRight={pageWidth - rightMargin:F2}");
+        Debug.WriteLine($"Print table vertical boundaries X: {string.Join(", ", boundaries.Select(x => x.ToString("F2", CultureInfo.InvariantCulture)))}");
     }
 
 }
