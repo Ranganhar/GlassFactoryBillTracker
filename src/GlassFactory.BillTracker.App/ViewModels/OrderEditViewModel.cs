@@ -379,15 +379,15 @@ public sealed class OrderEditViewModel : ObservableObject
                 return;
             }
 
-            if (!IsIntegerValue(row.GlassUnitPricePerM2) || !IsIntegerValue(row.HoleFee) || !IsIntegerValue(row.OtherFee))
+            if (!IsIntegerValue(row.GlassLengthMm) || !IsIntegerValue(row.GlassWidthMm))
             {
-                MessageBox.Show("单价、打孔费、其他费用必须为整数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("长和宽必须为整数（mm）。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            if (!HasOneDecimal(row.GlassLengthMm) || !HasOneDecimal(row.GlassWidthMm))
+            if (!IsIntegerValue(row.GlassUnitPricePerM2) || !IsIntegerValue(row.HoleFee) || !IsIntegerValue(row.OtherFee))
             {
-                MessageBox.Show("长和宽最多保留1位小数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("单价、打孔费、其他费用必须为整数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
         }
@@ -398,11 +398,6 @@ public sealed class OrderEditViewModel : ObservableObject
     private static bool IsIntegerValue(decimal value)
     {
         return decimal.Truncate(value) == value;
-    }
-
-    private static bool HasOneDecimal(decimal value)
-    {
-        return Math.Round(value, 1, MidpointRounding.AwayFromZero) == value;
     }
 
     private DateTime BuildDateTime()

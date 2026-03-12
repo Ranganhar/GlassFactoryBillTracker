@@ -37,8 +37,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _glassLengthMm;
         set
         {
-            var normalized = NormalizeLengthOrWidth(value);
-            if (SetProperty(ref _glassLengthMm, normalized))
+            if (SetProperty(ref _glassLengthMm, value))
             {
                 Recalculate();
             }
@@ -50,8 +49,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _glassWidthMm;
         set
         {
-            var normalized = NormalizeLengthOrWidth(value);
-            if (SetProperty(ref _glassWidthMm, normalized))
+            if (SetProperty(ref _glassWidthMm, value))
             {
                 Recalculate();
             }
@@ -75,8 +73,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _glassUnitPricePerM2;
         set
         {
-            var normalized = NormalizeIntegerDecimal(value);
-            if (SetProperty(ref _glassUnitPricePerM2, normalized))
+            if (SetProperty(ref _glassUnitPricePerM2, value))
             {
                 Recalculate();
             }
@@ -125,8 +122,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _otherFee;
         set
         {
-            var normalized = NormalizeIntegerDecimal(value);
-            if (SetProperty(ref _otherFee, normalized))
+            if (SetProperty(ref _otherFee, value))
             {
                 Recalculate();
             }
@@ -138,8 +134,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _holeFee;
         set
         {
-            var normalized = NormalizeIntegerDecimal(value);
-            if (SetProperty(ref _holeFee, normalized))
+            if (SetProperty(ref _holeFee, value))
             {
                 Recalculate();
             }
@@ -223,16 +218,6 @@ public sealed class OrderItemRowViewModel : ObservableObject
         var snapshot = ToEntity();
         Amount = snapshot.Amount;
         _recalculateCallback?.Invoke();
-    }
-
-    private static decimal NormalizeLengthOrWidth(decimal value)
-    {
-        return Math.Round(value, 1, MidpointRounding.AwayFromZero);
-    }
-
-    private static decimal NormalizeIntegerDecimal(decimal value)
-    {
-        return Math.Round(value, 0, MidpointRounding.AwayFromZero);
     }
 
     private static string NormalizeModel(string? value)

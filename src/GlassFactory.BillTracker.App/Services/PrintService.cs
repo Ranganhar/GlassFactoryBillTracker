@@ -126,17 +126,17 @@ public sealed class PrintService : IPrintService
         root.Children.Add(meta);
 
         var rows = (order.Items ?? Array.Empty<OrderExportItemDto>()).Where(item => item is not null).ToList();
-        var headers = new[] { "型号", "长", "宽", "数量", "单价", "打孔费", "其他费用", "金额", "备注" };
+        var headers = new[] { "型号", "长（mm）", "宽（mm）", "数量", "单价（元/㎡）", "打孔费", "其他费用", "金额（元）", "备注" };
         var valuesByRow = rows.Select(item => new[]
         {
             item.Model ?? string.Empty,
-            FormatOneDecimalTrim(item.GlassLengthMm),
-            FormatOneDecimalTrim(item.GlassWidthMm),
+            FormatInt(item.GlassLengthMm),
+            FormatInt(item.GlassWidthMm),
             item.Quantity.ToString(CultureInfo.InvariantCulture),
-            Math.Round(item.GlassUnitPricePerM2, 0, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture),
-            Math.Round(item.HoleFee, 0, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture),
-            Math.Round(item.OtherFee, 0, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture),
-            OrderAmountCalculator.Round(item.Amount).ToString("F2", CultureInfo.InvariantCulture),
+            FormatInt(item.GlassUnitPricePerM2),
+            FormatInt(item.HoleFee),
+            FormatInt(item.OtherFee),
+            FormatMoney2(item.Amount),
             item.Note ?? string.Empty
         }).ToList();
 
@@ -176,7 +176,7 @@ public sealed class PrintService : IPrintService
         }
 
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var totalCell = CreateCell($"合计：{OrderAmountCalculator.Round(order.TotalAmount):F2}", bold: true, isDotMatrix, baseFontSize, TextAlignment.Right, wrap: false, trim: false);
+        var totalCell = CreateCell($"合计：{FormatMoney2(order.TotalAmount)}", bold: true, isDotMatrix, baseFontSize, TextAlignment.Right, wrap: false, trim: false);
         Grid.SetRow(totalCell, rowIndex);
         Grid.SetColumn(totalCell, 0);
         Grid.SetColumnSpan(totalCell, headers.Length);
@@ -310,15 +310,15 @@ public sealed class PrintService : IPrintService
         return formattedText.WidthIncludingTrailingWhitespace;
     }
 
-    private static string FormatOneDecimalTrim(decimal value)
+    private static string FormatInt(decimal value)
     {
-        var rounded = Math.Round(value, 1, MidpointRounding.AwayFromZero);
-        if (decimal.Truncate(rounded) == rounded)
-        {
-            return rounded.ToString("F0", CultureInfo.InvariantCulture);
-        }
+        var rounded = Math.Round(value, 0, MidpointRounding.AwayFromZero);
+        return rounded.ToString("F0", CultureInfo.InvariantCulture);
+    }
 
-        return rounded.ToString("0.0", CultureInfo.InvariantCulture);
+    private static string FormatMoney2(decimal value)
+    {
+        return OrderAmountCalculator.Round(value).ToString("F2", CultureInfo.InvariantCulture);
     }
 
     private static double MmToDip(double mm)

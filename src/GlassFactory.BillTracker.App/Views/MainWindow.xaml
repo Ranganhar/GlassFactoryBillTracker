@@ -42,9 +42,9 @@
 
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="280" />
-                <ColumnDefinition Width="10" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="220" MinWidth="160" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" MinWidth="500" />
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="1" Padding="8">
@@ -83,6 +83,14 @@
                     </Grid>
                 </Grid>
             </Border>
+
+            <GridSplitter Grid.Column="1"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          Background="#E5E5E5"
+                          ShowsPreview="True" />
 
             <Border Grid.Column="2" BorderBrush="#DDD" BorderThickness="1" Padding="8">
                 <Grid>
