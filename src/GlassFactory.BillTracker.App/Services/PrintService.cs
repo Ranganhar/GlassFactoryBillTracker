@@ -12,13 +12,30 @@ namespace GlassFactory.BillTracker.App.Services;
 
 public sealed class PrintService : IPrintService
 {
+    private const int NoteColumnIndex = 8;
     private const double DotMatrixPageWidthMm = 216d;
     private const double DotMatrixPageHeightMm = 93d;
     private const double DotMatrixMarginMm = 5d;
     private const double DotMatrixHeaderBlockMm = 16d;
     private const double DotMatrixTableHeaderMm = 7d;
-    private const double DotMatrixRowMm = 6.5d;
-    private const double DotMatrixFooterMm = 7d;
+    private const double DotMatrixBaseRowMm = 6.5d;
+    private const double DotMatrixHorizontalPaddingDip = 3d;
+    private const double DotMatrixVerticalPaddingDip = 2d;
+    private const double DotMatrixInnerPaddingDip = 6d;
+    private const double DotMatrixCellBorderDip = 0.5d;
+    private const double DotMatrixOuterBorderDip = 0.8d;
+
+    private sealed class DotMatrixRowLayout
+    {
+        public required string[] Values { get; init; }
+        public required double Height { get; init; }
+    }
+
+    private sealed class DotMatrixPageLayout
+    {
+        public required IReadOnlyList<DotMatrixRowLayout> Rows { get; init; }
+        public required bool IncludeFooter { get; init; }
+    }
 
     public FixedDocument RenderDotMatrixTriplicate(IReadOnlyList<OrderExportDto> orders, PrintBillOptions options)
     {
@@ -34,14 +51,21 @@ public sealed class PrintService : IPrintService
         var margin = MmToDip(DotMatrixMarginMm);
         var headerBlockHeight = MmToDip(DotMatrixHeaderBlockMm);
         var tableHeaderHeight = MmToDip(DotMatrixTableHeaderMm);
-        var rowHeight = MmToDip(DotMatrixRowMm);
-        var footerHeight = MmToDip(DotMatrixFooterMm);
         var baseFontSize = Math.Max(8d, options.FontSize);
+        var tableFontSize = Math.Max(8d, baseFontSize - 1d);
+        var baseRowHeight = MmToDip(DotMatrixBaseRowMm);
+
+        var contentWidth = pageWidth - (margin * 2d);
+        var contentHeight = pageHeight - (margin * 2d);
+        var tableWidth = Math.Max(80d, contentWidth - (DotMatrixInnerPaddingDip * 2d));
+        var pageRowsHeightLimit = Math.Max(
+            baseRowHeight,
+            contentHeight - (DotMatrixInnerPaddingDip * 2d) - headerBlockHeight - tableHeaderHeight);
 
         foreach (var order in orders)
         {
             var headers = new[] { "型号", "长（mm）", "宽（mm）", "数量", "单价（元/㎡）", "打孔费", "其他费用", "金额（元）", "备注" };
-            var rows = (order.Items ?? Array.Empty<OrderExportItemDto>())
+            var sourceRows = (order.Items ?? Array.Empty<OrderExportItemDto>())
                 .Where(item => item is not null)
                 .Select(item => new[]
                 {
@@ -57,48 +81,45 @@ public sealed class PrintService : IPrintService
                 })
                 .ToList();
 
-            var contentWidth = Math.Max(120d, pageWidth - (margin * 2d) - 0.5d);
-            var columnWidths = BuildColumnWidths(contentWidth, headers, rows, baseFontSize, cellPadding: 6d);
+            var columnWidths = BuildColumnWidths(tableWidth, headers, sourceRows, tableFontSize, cellPadding: DotMatrixHorizontalPaddingDip * 2d);
+            var noteColumnWidth = columnWidths[NoteColumnIndex];
+            var noteTextWidth = Math.Max(8d, noteColumnWidth - (DotMatrixHorizontalPaddingDip * 2d));
 
-            var rowsPerPageWithoutFooter = ComputeRowsPerPage(pageHeight, margin, headerBlockHeight, tableHeaderHeight, rowHeight, includeFooter: false, footerHeight);
-            var rowsPerPageWithFooter = ComputeRowsPerPage(pageHeight, margin, headerBlockHeight, tableHeaderHeight, rowHeight, includeFooter: true, footerHeight);
+            var typeface = new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            var maxLinesPerPhysicalRow = Math.Max(
+                1,
+                (int)Math.Floor((pageRowsHeightLimit - (DotMatrixVerticalPaddingDip * 2d)) / Math.Max(1d, MeasureSingleLineHeight(typeface, tableFontSize))));
 
-            var nextRowIndex = 0;
-            var pageNo = 1;
-            while (true)
+            var rowLayouts = BuildRowLayouts(
+                sourceRows,
+                typeface,
+                tableFontSize,
+                noteTextWidth,
+                baseRowHeight,
+                maxLinesPerPhysicalRow);
+
+            var footerHeight = MeasureFooterRowHeight(baseFontSize);
+            var pageLayouts = PaginateRows(rowLayouts, pageRowsHeightLimit, footerHeight, order.OrderNo);
+
+            foreach (var page in pageLayouts)
             {
-                var remaining = rows.Count - nextRowIndex;
-                var isFinalPage = remaining <= rowsPerPageWithFooter;
-
-                int rowsThisPage;
-                if (remaining <= 0)
-                {
-                    rowsThisPage = 0;
-                    isFinalPage = true;
-                }
-                else
-                {
-                    rowsThisPage = isFinalPage
-                        ? remaining
-                        : Math.Min(remaining, rowsPerPageWithoutFooter);
-                }
-
-                TracePaginationDecision(order.OrderNo, pageNo, remaining, rowsThisPage, isFinalPage, rowsPerPageWithoutFooter, rowsPerPageWithFooter);
-
-                var pageRows = rows.Skip(nextRowIndex).Take(rowsThisPage).ToList();
                 var pageContent = new PageContent();
-                var fixedPage = CreateDotMatrixPage(order, options, pageWidth, pageHeight, margin, headerBlockHeight, tableHeaderHeight, rowHeight, footerHeight, headers, columnWidths, pageRows, isFinalPage);
-
+                var fixedPage = CreateDotMatrixPage(
+                    order,
+                    options,
+                    pageWidth,
+                    pageHeight,
+                    margin,
+                    headerBlockHeight,
+                    tableHeaderHeight,
+                    headers,
+                    columnWidths,
+                    page.Rows,
+                    page.IncludeFooter,
+                    footerHeight,
+                    noteColumnWidth);
                 ((IAddChild)pageContent).AddChild(fixedPage);
                 document.Pages.Add(pageContent);
-
-                if (remaining <= 0 || isFinalPage)
-                {
-                    break;
-                }
-
-                nextRowIndex += rowsThisPage;
-                pageNo++;
             }
         }
 
@@ -137,6 +158,136 @@ public sealed class PrintService : IPrintService
         return document;
     }
 
+    private static IReadOnlyList<DotMatrixRowLayout> BuildRowLayouts(
+        IReadOnlyList<string[]> sourceRows,
+        Typeface typeface,
+        double tableFontSize,
+        double noteTextWidth,
+        double baseRowHeight,
+        int maxLinesPerPhysicalRow)
+    {
+        var rows = new List<DotMatrixRowLayout>();
+
+        foreach (var source in sourceRows)
+        {
+            var wrappedLines = WrapTextToLines(source[NoteColumnIndex], noteTextWidth, typeface, tableFontSize);
+            if (wrappedLines.Count == 0)
+            {
+                wrappedLines.Add(string.Empty);
+            }
+
+            var offset = 0;
+            var chunkIndex = 0;
+            while (offset < wrappedLines.Count)
+            {
+                var linesInChunk = Math.Min(maxLinesPerPhysicalRow, wrappedLines.Count - offset);
+                var noteChunk = string.Join("\n", wrappedLines.Skip(offset).Take(linesInChunk));
+                var values = new string[source.Length];
+                if (chunkIndex == 0)
+                {
+                    Array.Copy(source, values, source.Length);
+                }
+                else
+                {
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        values[i] = string.Empty;
+                    }
+                }
+
+                values[NoteColumnIndex] = noteChunk;
+
+                var noteHeight = MeasureWrappedTextHeight(noteChunk, noteTextWidth, typeface, tableFontSize);
+                var rowHeight = Math.Max(baseRowHeight, noteHeight + (DotMatrixVerticalPaddingDip * 2d));
+                rows.Add(new DotMatrixRowLayout { Values = values, Height = rowHeight });
+
+                offset += linesInChunk;
+                chunkIndex++;
+            }
+        }
+
+        return rows;
+    }
+
+    private static IReadOnlyList<DotMatrixPageLayout> PaginateRows(
+        IReadOnlyList<DotMatrixRowLayout> rows,
+        double pageRowsHeightLimit,
+        double footerHeight,
+        string? orderNo)
+    {
+        var pages = new List<DotMatrixPageLayout>();
+        var nextIndex = 0;
+        var pageNo = 1;
+
+        while (nextIndex < rows.Count)
+        {
+            var pageRows = new List<DotMatrixRowLayout>();
+            var usedHeight = 0d;
+
+            while (nextIndex < rows.Count)
+            {
+                var row = rows[nextIndex];
+                var rowHeight = Math.Min(row.Height, pageRowsHeightLimit);
+                var isLastRow = nextIndex == rows.Count - 1;
+                var requiredHeight = rowHeight + (isLastRow ? footerHeight : 0d);
+                if ((usedHeight + requiredHeight) <= (pageRowsHeightLimit + 0.1d))
+                {
+                    pageRows.Add(new DotMatrixRowLayout { Values = row.Values, Height = rowHeight });
+                    usedHeight += rowHeight;
+                    nextIndex++;
+                    continue;
+                }
+
+                if (pageRows.Count == 0)
+                {
+                    pageRows.Add(new DotMatrixRowLayout { Values = row.Values, Height = rowHeight });
+                    usedHeight += rowHeight;
+                    nextIndex++;
+                }
+
+                break;
+            }
+
+            var isFinalPageCandidate = nextIndex >= rows.Count;
+            var includeFooter = false;
+            if (isFinalPageCandidate)
+            {
+                includeFooter = (usedHeight + footerHeight) <= (pageRowsHeightLimit + 0.1d);
+            }
+
+            pages.Add(new DotMatrixPageLayout
+            {
+                Rows = pageRows,
+                IncludeFooter = includeFooter
+            });
+
+            TracePaginationDecision(orderNo, pageNo, rows.Count - nextIndex, pageRows.Count, includeFooter, usedHeight, pageRowsHeightLimit, footerHeight);
+            pageNo++;
+
+            if (isFinalPageCandidate && !includeFooter)
+            {
+                pages.Add(new DotMatrixPageLayout
+                {
+                    Rows = Array.Empty<DotMatrixRowLayout>(),
+                    IncludeFooter = true
+                });
+                TracePaginationDecision(orderNo, pageNo, 0, 0, true, 0d, pageRowsHeightLimit, footerHeight);
+                break;
+            }
+        }
+
+        if (rows.Count == 0)
+        {
+            pages.Add(new DotMatrixPageLayout
+            {
+                Rows = Array.Empty<DotMatrixRowLayout>(),
+                IncludeFooter = true
+            });
+        }
+
+        return pages;
+    }
+
     private static FixedPage CreateDotMatrixPage(
         OrderExportDto order,
         PrintBillOptions options,
@@ -145,16 +296,17 @@ public sealed class PrintService : IPrintService
         double margin,
         double headerBlockHeight,
         double tableHeaderHeight,
-        double rowHeight,
-        double footerHeight,
         IReadOnlyList<string> headers,
         IReadOnlyList<double> columnWidths,
-        IReadOnlyList<string[]> pageRows,
-        bool includeFooter)
+        IReadOnlyList<DotMatrixRowLayout> pageRows,
+        bool includeFooter,
+        double footerHeight,
+        double noteColumnWidth)
     {
         options ??= new PrintBillOptions();
         order ??= new OrderExportDto();
         var baseFontSize = Math.Max(8d, options.FontSize);
+        var tableFontSize = Math.Max(8d, baseFontSize - 1d);
 
         var fixedPage = new FixedPage
         {
@@ -168,8 +320,8 @@ public sealed class PrintService : IPrintService
             Width = pageWidth - (margin * 2d),
             Height = pageHeight - (margin * 2d),
             BorderBrush = Brushes.Black,
-            BorderThickness = new Thickness(0.8),
-            Padding = new Thickness(6d),
+            BorderThickness = new Thickness(DotMatrixOuterBorderDip),
+            Padding = new Thickness(DotMatrixInnerPaddingDip),
             SnapsToDevicePixels = true
         };
         FixedPage.SetLeft(contentBorder, margin);
@@ -178,10 +330,6 @@ public sealed class PrintService : IPrintService
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(headerBlockHeight) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        if (includeFooter)
-        {
-            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(footerHeight) });
-        }
 
         var headerPanel = new StackPanel
         {
@@ -212,20 +360,17 @@ public sealed class PrintService : IPrintService
         Grid.SetRow(headerPanel, 0);
         root.Children.Add(headerPanel);
 
-        var table = BuildPageTable(headers, columnWidths, pageRows, includeFooter ? $"合计：{FormatMoney2(order.TotalAmount)}" : null, baseFontSize, tableHeaderHeight, rowHeight, footerHeight);
+        var table = BuildPageTable(
+            headers,
+            columnWidths,
+            pageRows,
+            includeFooter ? $"合计：{FormatMoney2(order.TotalAmount)}" : null,
+            baseFontSize,
+            tableHeaderHeight,
+            footerHeight,
+            noteColumnWidth);
         Grid.SetRow(table, 1);
         root.Children.Add(table);
-
-        if (includeFooter)
-        {
-            var footer = new TextBlock
-            {
-                Text = "",
-                FontSize = baseFontSize - 1
-            };
-            Grid.SetRow(footer, 2);
-            root.Children.Add(footer);
-        }
 
         contentBorder.Child = root;
         fixedPage.Children.Add(contentBorder);
@@ -235,12 +380,12 @@ public sealed class PrintService : IPrintService
     private static Border BuildPageTable(
         IReadOnlyList<string> headers,
         IReadOnlyList<double> columnWidths,
-        IReadOnlyList<string[]> pageRows,
+        IReadOnlyList<DotMatrixRowLayout> pageRows,
         string? totalText,
         double baseFontSize,
         double tableHeaderHeight,
-        double rowHeight,
-        double footerHeight)
+        double footerHeight,
+        double noteColumnWidth)
     {
         var table = new Grid
         {
@@ -257,20 +402,28 @@ public sealed class PrintService : IPrintService
         table.RowDefinitions.Add(new RowDefinition { Height = new GridLength(tableHeaderHeight) });
         for (var col = 0; col < headers.Count; col++)
         {
-            var cell = CreateCell(headers[col], bold: true, isDotMatrix: true, baseFontSize, TextAlignment.Left, wrap: false, trim: true);
+            var cell = CreateCell(headers[col], bold: true, baseFontSize, TextAlignment.Left, wrap: false, trim: true, maxTextWidth: null);
             Grid.SetRow(cell, 0);
             Grid.SetColumn(cell, col);
             table.Children.Add(cell);
         }
 
         var rowIndex = 1;
-        foreach (var values in pageRows)
+        foreach (var row in pageRows)
         {
-            table.RowDefinitions.Add(new RowDefinition { Height = new GridLength(rowHeight) });
+            table.RowDefinitions.Add(new RowDefinition { Height = new GridLength(row.Height) });
+            var values = row.Values;
             for (var col = 0; col < values.Length; col++)
             {
-                var trim = col == headers.Count - 1;
-                var cell = CreateCell(values[col], bold: false, isDotMatrix: true, baseFontSize, TextAlignment.Left, wrap: trim, trim: trim);
+                var isNote = col == NoteColumnIndex;
+                var cell = CreateCell(
+                    values[col],
+                    bold: false,
+                    baseFontSize,
+                    TextAlignment.Left,
+                    wrap: isNote,
+                    trim: !isNote,
+                    maxTextWidth: isNote ? Math.Max(8d, noteColumnWidth - (DotMatrixHorizontalPaddingDip * 2d)) : null);
                 Grid.SetRow(cell, rowIndex);
                 Grid.SetColumn(cell, col);
                 table.Children.Add(cell);
@@ -282,7 +435,7 @@ public sealed class PrintService : IPrintService
         if (!string.IsNullOrWhiteSpace(totalText))
         {
             table.RowDefinitions.Add(new RowDefinition { Height = new GridLength(footerHeight) });
-            var totalCell = CreateCell(totalText, bold: true, isDotMatrix: true, baseFontSize, TextAlignment.Right, wrap: false, trim: false);
+            var totalCell = CreateCell(totalText, bold: true, baseFontSize, TextAlignment.Right, wrap: false, trim: false, maxTextWidth: null);
             Grid.SetRow(totalCell, rowIndex);
             Grid.SetColumn(totalCell, 0);
             Grid.SetColumnSpan(totalCell, headers.Count);
@@ -292,24 +445,10 @@ public sealed class PrintService : IPrintService
         return new Border
         {
             BorderBrush = Brushes.Black,
-            BorderThickness = new Thickness(0.8),
+            BorderThickness = new Thickness(DotMatrixOuterBorderDip),
             SnapsToDevicePixels = true,
             Child = table
         };
-    }
-
-    private static int ComputeRowsPerPage(
-        double pageHeight,
-        double margin,
-        double headerBlockHeight,
-        double tableHeaderHeight,
-        double rowHeight,
-        bool includeFooter,
-        double footerHeight)
-    {
-        var available = pageHeight - (margin * 2d) - 12d - headerBlockHeight - tableHeaderHeight - (includeFooter ? footerHeight : 0d);
-        var rows = (int)Math.Floor(available / rowHeight);
-        return Math.Max(1, rows);
     }
 
     private static Border CreateBillCopyPanel(OrderExportDto order, PrintBillOptions options, double pageWidth, double pageHeight, bool isDotMatrix)
@@ -387,7 +526,7 @@ public sealed class PrintService : IPrintService
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (var col = 0; col < headers.Length; col++)
         {
-            var cell = CreateCell(headers[col], bold: true, isDotMatrix, baseFontSize, TextAlignment.Left, wrap: false, trim: true);
+            var cell = CreateCell(headers[col], bold: true, baseFontSize, TextAlignment.Left, wrap: false, trim: true, maxTextWidth: null);
             Grid.SetRow(cell, 0);
             Grid.SetColumn(cell, col);
             table.Children.Add(cell);
@@ -400,7 +539,8 @@ public sealed class PrintService : IPrintService
             for (var col = 0; col < values.Length; col++)
             {
                 var trim = col == 8;
-                var cell = CreateCell(values[col], bold: false, isDotMatrix, baseFontSize, TextAlignment.Left, wrap: col == 8, trim: trim);
+                double? maxTextWidth = col == 8 ? Math.Max(8d, columnWidths[8] - (DotMatrixHorizontalPaddingDip * 2d)) : null;
+                var cell = CreateCell(values[col], bold: false, baseFontSize, TextAlignment.Left, wrap: col == 8, trim: trim, maxTextWidth: maxTextWidth);
                 Grid.SetRow(cell, rowIndex);
                 Grid.SetColumn(cell, col);
                 table.Children.Add(cell);
@@ -410,7 +550,7 @@ public sealed class PrintService : IPrintService
         }
 
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var totalCell = CreateCell($"合计：{FormatMoney2(order.TotalAmount)}", bold: true, isDotMatrix, baseFontSize, TextAlignment.Right, wrap: false, trim: false);
+        var totalCell = CreateCell($"合计：{FormatMoney2(order.TotalAmount)}", bold: true, baseFontSize, TextAlignment.Right, wrap: false, trim: false, maxTextWidth: null);
         Grid.SetRow(totalCell, rowIndex);
         Grid.SetColumn(totalCell, 0);
         Grid.SetColumnSpan(totalCell, headers.Length);
@@ -431,23 +571,103 @@ public sealed class PrintService : IPrintService
         return outerBorder;
     }
 
-    private static Border CreateCell(string text, bool bold, bool isDotMatrix, double baseFontSize, TextAlignment alignment, bool wrap, bool trim)
+    private static Border CreateCell(string text, bool bold, double baseFontSize, TextAlignment alignment, bool wrap, bool trim, double? maxTextWidth)
     {
         return new Border
         {
             BorderBrush = Brushes.Black,
-            BorderThickness = new Thickness(0.5),
-            Padding = new Thickness(3, 2, 3, 2),
+            BorderThickness = new Thickness(DotMatrixCellBorderDip),
+            Padding = new Thickness(DotMatrixHorizontalPaddingDip, DotMatrixVerticalPaddingDip, DotMatrixHorizontalPaddingDip, DotMatrixVerticalPaddingDip),
             Child = new TextBlock
             {
                 Text = text,
                 FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
-                FontSize = isDotMatrix ? Math.Max(8d, baseFontSize - 1) : baseFontSize,
+                FontSize = Math.Max(8d, baseFontSize - 1d),
                 TextAlignment = alignment,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap,
-                TextTrimming = trim ? TextTrimming.CharacterEllipsis : TextTrimming.None
+                TextTrimming = trim ? TextTrimming.CharacterEllipsis : TextTrimming.None,
+                MaxWidth = maxTextWidth ?? double.PositiveInfinity
             }
         };
+    }
+
+    private static double MeasureFooterRowHeight(double baseFontSize)
+    {
+        var typeface = new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+        var fontSize = Math.Max(8d, baseFontSize - 1d);
+        var lineHeight = MeasureSingleLineHeight(typeface, fontSize);
+        var baseRowHeight = MmToDip(DotMatrixBaseRowMm);
+        return Math.Max(baseRowHeight, lineHeight + (DotMatrixVerticalPaddingDip * 2d));
+    }
+
+    private static double MeasureSingleLineHeight(Typeface typeface, double fontSize)
+    {
+        var formattedText = new FormattedText(
+            "X",
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
+            Brushes.Black,
+            1.0);
+        return formattedText.Height;
+    }
+
+    private static double MeasureWrappedTextHeight(string text, double maxTextWidth, Typeface typeface, double fontSize)
+    {
+        var formattedText = new FormattedText(
+            string.IsNullOrEmpty(text) ? " " : text,
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
+            Brushes.Black,
+            1.0)
+        {
+            MaxTextWidth = Math.Max(8d, maxTextWidth),
+            Trimming = TextTrimming.None
+        };
+        return formattedText.Height;
+    }
+
+    private static List<string> WrapTextToLines(string? text, double maxTextWidth, Typeface typeface, double fontSize)
+    {
+        var lines = new List<string>();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            lines.Add(string.Empty);
+            return lines;
+        }
+
+        var paragraphs = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        foreach (var paragraph in paragraphs)
+        {
+            if (paragraph.Length == 0)
+            {
+                lines.Add(string.Empty);
+                continue;
+            }
+
+            var current = string.Empty;
+            foreach (var ch in paragraph)
+            {
+                var candidate = string.Concat(current, ch);
+                if (MeasureTextWidth(candidate, typeface, fontSize) <= maxTextWidth || candidate.Length == 1)
+                {
+                    current = candidate;
+                    continue;
+                }
+
+                lines.Add(current);
+                current = ch.ToString();
+            }
+
+            lines.Add(current);
+        }
+
+        return lines;
     }
 
     private static IReadOnlyList<double> BuildColumnWidths(
@@ -583,13 +803,14 @@ public sealed class PrintService : IPrintService
         string? orderNo,
         int pageNo,
         int remainingRows,
-        int rowsThisPage,
+        int rowsOnPage,
         bool isFinalPage,
-        int rowsPerPageWithoutFooter,
-        int rowsPerPageWithFooter)
+        double usedHeight,
+        double pageHeightLimit,
+        double footerHeight)
     {
         Debug.WriteLine(
-            $"Print pagination: order={orderNo ?? string.Empty}, page={pageNo}, remaining={remainingRows}, rowsThisPage={rowsThisPage}, final={isFinalPage}, noFooterCap={rowsPerPageWithoutFooter}, withFooterCap={rowsPerPageWithFooter}");
+            $"Print pagination: order={orderNo ?? string.Empty}, page={pageNo}, remaining={remainingRows}, rowsOnPage={rowsOnPage}, final={isFinalPage}, usedHeight={usedHeight:F2}, pageLimit={pageHeightLimit:F2}, footerHeight={footerHeight:F2}");
     }
 
 }
