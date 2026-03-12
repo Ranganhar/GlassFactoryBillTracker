@@ -19,7 +19,6 @@ public sealed class PrintService : IPrintService
     private const double DotMatrixPageWidthMm = 216d;
     private const double DotMatrixPageHeightMm = 93d;
     private const double DotMatrixMarginMm = 5d;
-    private const double DotMatrixHeaderBlockMm = 16d;
     private const double DotMatrixTableHeaderMm = 7d;
     private const double DotMatrixBaseRowMm = 6.5d;
     private const double DotMatrixHorizontalPaddingDip = 3d;
@@ -27,6 +26,8 @@ public sealed class PrintService : IPrintService
     private const double DotMatrixInnerPaddingDip = 6d;
     private const double DotMatrixCellBorderDip = 0.5d;
     private const double DotMatrixOuterBorderDip = 0.8d;
+    private const double DotMatrixHeaderGapDip = 1.5d;
+    private const double DotMatrixMinNoteWidthDip = 40d;
 
     private sealed class DotMatrixRowLayout
     {
@@ -52,7 +53,6 @@ public sealed class PrintService : IPrintService
         var pageWidth = MmToDip(DotMatrixPageWidthMm);
         var pageHeight = MmToDip(DotMatrixPageHeightMm);
         var margin = MmToDip(DotMatrixMarginMm);
-        var headerBlockHeight = MmToDip(DotMatrixHeaderBlockMm);
         var tableHeaderHeight = MmToDip(DotMatrixTableHeaderMm);
         var baseFontSize = Math.Max(8d, options.FontSize);
         var tableFontSize = Math.Max(8d, baseFontSize - 1d);
@@ -61,10 +61,6 @@ public sealed class PrintService : IPrintService
         var contentWidth = pageWidth - (margin * 2d);
         var contentHeight = pageHeight - (margin * 2d);
         var tableWidth = Math.Max(80d, contentWidth - (DotMatrixInnerPaddingDip * 2d));
-        var pageRowsHeightLimit = Math.Max(
-            baseRowHeight,
-            contentHeight - (DotMatrixInnerPaddingDip * 2d) - headerBlockHeight - tableHeaderHeight);
-
         foreach (var order in orders)
         {
             var headers = new[] { "型号", "长(mm)", "宽(mm)", "数量", "单价(元/㎡)", "打孔费", "其他费用", "金额(元)", "备注" };
@@ -84,9 +80,22 @@ public sealed class PrintService : IPrintService
                 })
                 .ToList();
 
-            var columnWidths = BuildColumnWidths(tableWidth, headers, sourceRows, tableFontSize, cellPadding: DotMatrixHorizontalPaddingDip * 2d);
+            var columnWidths = ComputeColumnWidths(
+                headers,
+                sourceRows,
+                tableFontSize,
+                new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+                pageWidth,
+                (margin * 2d) + (DotMatrixInnerPaddingDip * 2d),
+                DotMatrixHorizontalPaddingDip * 2d,
+                DotMatrixMinNoteWidthDip);
             var noteColumnWidth = columnWidths[NoteColumnIndex];
             var noteTextWidth = Math.Max(8d, noteColumnWidth - (DotMatrixHorizontalPaddingDip * 2d));
+
+            var headerHeight = MeasureHeaderBlockHeight(order, options, tableWidth);
+            var pageRowsHeightLimit = Math.Max(
+                baseRowHeight,
+                contentHeight - (DotMatrixInnerPaddingDip * 2d) - headerHeight - DotMatrixHeaderGapDip - tableHeaderHeight);
 
             var typeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
             var maxLinesPerPhysicalRow = Math.Max(
@@ -113,7 +122,7 @@ public sealed class PrintService : IPrintService
                     pageWidth,
                     pageHeight,
                     margin,
-                    headerBlockHeight,
+                    headerHeight,
                     tableHeaderHeight,
                     headers,
                     columnWidths,
@@ -297,7 +306,7 @@ public sealed class PrintService : IPrintService
         double pageWidth,
         double pageHeight,
         double margin,
-        double headerBlockHeight,
+        double measuredHeaderHeight,
         double tableHeaderHeight,
         IReadOnlyList<string> headers,
         IReadOnlyList<double> columnWidths,
@@ -329,13 +338,14 @@ public sealed class PrintService : IPrintService
         FixedPage.SetTop(contentBorder, margin);
 
         var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(headerBlockHeight) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(measuredHeaderHeight + DotMatrixHeaderGapDip) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var headerPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            VerticalAlignment = VerticalAlignment.Top
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 0, 0, DotMatrixHeaderGapDip)
         };
 
         var companyText = new TextBlock
@@ -516,7 +526,16 @@ public sealed class PrintService : IPrintService
 
         var table = new Grid { Margin = new Thickness(0, 2, 0, 6) };
         var contentWidth = Math.Max(120d, pageWidth - (horizontalPadding * 2d) - tableWidthEpsilon);
-        var columnWidths = BuildColumnWidths(contentWidth, headers, valuesByRow, baseFontSize, cellPadding);
+        var tableFontSize = Math.Max(8d, baseFontSize - 1d);
+        var columnWidths = ComputeColumnWidths(
+            headers,
+            valuesByRow,
+            tableFontSize,
+            new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            pageWidth,
+            horizontalPadding * 2d,
+            cellPadding,
+            DotMatrixMinNoteWidthDip);
         TraceTableCoordinates(horizontalPadding, columnWidths, pageWidth, horizontalPadding);
         foreach (var width in columnWidths)
         {
@@ -672,29 +691,32 @@ public sealed class PrintService : IPrintService
         return lines;
     }
 
-    private static IReadOnlyList<double> BuildColumnWidths(
-        double contentWidth,
+    private static IReadOnlyList<double> ComputeColumnWidths(
         IReadOnlyList<string> headers,
         IReadOnlyList<string[]> rows,
-        double baseFontSize,
-        double cellPadding)
+        double fontSize,
+        Typeface typeface,
+        double pageWidthDip,
+        double horizontalMarginsDip,
+        double cellPadding,
+        double minNoteWidthDip)
     {
         const int noteColumnIndex = 8;
+        var contentWidth = Math.Max(80d, pageWidthDip - horizontalMarginsDip);
 
-        var typeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         var widths = new double[headers.Count];
-        var fontScale = Math.Clamp(baseFontSize / 12d, 0.85d, 1.8d);
-        var minNoteWidth = 68d * fontScale;
+        var fontScale = Math.Clamp(fontSize / 12d, 0.8d, 1.9d);
+        var minNoteWidth = Math.Max(minNoteWidthDip, 34d * fontScale);
         var minWidths = new[]
         {
-            48d * fontScale,
+            36d * fontScale,
+            24d * fontScale,
+            24d * fontScale,
+            22d * fontScale,
             30d * fontScale,
             30d * fontScale,
-            28d * fontScale,
-            38d * fontScale,
-            38d * fontScale,
-            38d * fontScale,
-            42d * fontScale,
+            30d * fontScale,
+            34d * fontScale,
             minNoteWidth
         };
         var maxWidths = new[]
@@ -717,7 +739,7 @@ public sealed class PrintService : IPrintService
                 continue;
             }
 
-            var maxTextWidth = MeasureTextWidth(headers[col], typeface, baseFontSize);
+            var maxTextWidth = MeasureTextWidth(headers[col], typeface, fontSize);
             foreach (var row in rows)
             {
                 if (col >= row.Length)
@@ -725,7 +747,7 @@ public sealed class PrintService : IPrintService
                     continue;
                 }
 
-                var valueWidth = MeasureTextWidth(row[col], typeface, baseFontSize);
+                var valueWidth = MeasureTextWidth(row[col], typeface, fontSize);
                 if (valueWidth > maxTextWidth)
                 {
                     maxTextWidth = valueWidth;
@@ -781,6 +803,25 @@ public sealed class PrintService : IPrintService
         }
 
         return widths;
+    }
+
+    private static double MeasureHeaderBlockHeight(OrderExportDto order, PrintBillOptions options, double maxWidth)
+    {
+        var baseFontSize = Math.Max(8d, options.FontSize);
+        var companyTypeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+        var metaTypeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+
+        var companyHeight = MeasureWrappedTextHeight(
+            string.IsNullOrWhiteSpace(options.HeaderText) ? "亿达夹丝玻璃" : options.HeaderText,
+            maxWidth,
+            companyTypeface,
+            baseFontSize + 2d);
+
+        var contactPhone = options.UseCustomerPhone ? (order.CustomerPhone ?? string.Empty) : (options.CustomPhone ?? string.Empty);
+        var metaText = $"订单号: {order.OrderNo ?? string.Empty}    日期: {order.DateTime:yyyy-MM-dd HH:mm:ss}    客户: {order.CustomerName ?? string.Empty}    电话: {contactPhone}";
+        var metaHeight = MeasureWrappedTextHeight(metaText, maxWidth, metaTypeface, baseFontSize - 1d);
+
+        return companyHeight + 2d + metaHeight;
     }
 
     private static double MeasureTextWidth(string? text, Typeface typeface, double fontSize)

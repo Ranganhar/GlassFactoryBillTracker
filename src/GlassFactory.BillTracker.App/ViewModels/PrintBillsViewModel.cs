@@ -119,8 +119,7 @@ public sealed class PrintBillsViewModel : ObservableObject
         {
             if (SetProperty(ref _fontSize, value))
             {
-                // Force a full rerender so column widths are recalculated for the new font size.
-                RequestPreviewRefresh(forceRegenerate: true);
+                _ = RegeneratePreviewAsync();
             }
         }
     }
@@ -156,6 +155,12 @@ public sealed class PrintBillsViewModel : ObservableObject
     public void RefreshPreview()
     {
         RegeneratePreview(force: false);
+    }
+
+    public Task RegeneratePreviewAsync()
+    {
+        RequestPreviewRefresh(forceRegenerate: true);
+        return Task.CompletedTask;
     }
 
     public void RegeneratePreview(bool force)
