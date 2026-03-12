@@ -9,10 +9,13 @@ namespace GlassFactory.BillTracker.App.ViewModels;
 
 public sealed class PrintBillsViewModel : ObservableObject
 {
+    private const string PrintFontFamilyName = "Microsoft YaHei";
+
     private readonly IReadOnlyList<OrderExportDto> _orders;
     private readonly IPrintService _printService;
     private readonly DispatcherTimer _previewDebounceTimer;
     private readonly Dictionary<string, FixedDocument> _previewCache = new(StringComparer.Ordinal);
+    private bool _forceRegeneratePreview;
 
     private string _headerText = "亿达夹丝玻璃";
     private bool _useCustomerPhone = true;
@@ -37,10 +40,11 @@ public sealed class PrintBillsViewModel : ObservableObject
         _previewDebounceTimer.Tick += (_, _) =>
         {
             _previewDebounceTimer.Stop();
-            RefreshPreview();
+            RegeneratePreview(_forceRegeneratePreview);
+            _forceRegeneratePreview = false;
         };
 
-        RefreshPreview();
+        RegeneratePreview(force: true);
     }
 
     public ObservableCollection<OrderExportDto> Orders { get; }
@@ -115,7 +119,8 @@ public sealed class PrintBillsViewModel : ObservableObject
         {
             if (SetProperty(ref _fontSize, value))
             {
-                RequestPreviewRefresh();
+                // Force a full rerender so column widths are recalculated for the new font size.
+                RequestPreviewRefresh(forceRegenerate: true);
             }
         }
     }
@@ -141,13 +146,19 @@ public sealed class PrintBillsViewModel : ObservableObject
         };
     }
 
-    public void RequestPreviewRefresh()
+    public void RequestPreviewRefresh(bool forceRegenerate = false)
     {
+        _forceRegeneratePreview = _forceRegeneratePreview || forceRegenerate;
         _previewDebounceTimer.Stop();
         _previewDebounceTimer.Start();
     }
 
     public void RefreshPreview()
+    {
+        RegeneratePreview(force: false);
+    }
+
+    public void RegeneratePreview(bool force)
     {
         if (_orders.Count == 0)
         {
@@ -157,7 +168,7 @@ public sealed class PrintBillsViewModel : ObservableObject
 
         var options = BuildOptions();
         var cacheKey = BuildCacheKey(options);
-        if (!_previewCache.TryGetValue(cacheKey, out var document))
+        if (force || !_previewCache.TryGetValue(cacheKey, out var document))
         {
             document = options.TemplateKind == PrintTemplateKind.DotMatrix
                 ? _printService.RenderDotMatrixTriplicate(_orders, options)
@@ -175,6 +186,7 @@ public sealed class PrintBillsViewModel : ObservableObject
             options.TemplateKind.ToString(),
             DotMatrixHeightMode.Third.ToString(),
             options.FontSize.ToString("F0"),
+            PrintFontFamilyName,
             options.HeaderText ?? string.Empty,
             options.UseCustomerPhone ? "1" : "0",
             options.CustomPhone ?? string.Empty

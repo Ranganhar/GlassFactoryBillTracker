@@ -13,6 +13,9 @@ namespace GlassFactory.BillTracker.App.Services;
 public sealed class PrintService : IPrintService
 {
     private const int NoteColumnIndex = 8;
+    private static readonly FontFamily PrintFontFamily = new("Microsoft YaHei");
+    private static readonly double MeasurementPixelsPerDip = GetPixelsPerDip();
+
     private const double DotMatrixPageWidthMm = 216d;
     private const double DotMatrixPageHeightMm = 93d;
     private const double DotMatrixMarginMm = 5d;
@@ -85,7 +88,7 @@ public sealed class PrintService : IPrintService
             var noteColumnWidth = columnWidths[NoteColumnIndex];
             var noteTextWidth = Math.Max(8d, noteColumnWidth - (DotMatrixHorizontalPaddingDip * 2d));
 
-            var typeface = new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            var typeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
             var maxLinesPerPhysicalRow = Math.Max(
                 1,
                 (int)Math.Floor((pageRowsHeightLimit - (DotMatrixVerticalPaddingDip * 2d)) / Math.Max(1d, MeasureSingleLineHeight(typeface, tableFontSize))));
@@ -306,8 +309,6 @@ public sealed class PrintService : IPrintService
         options ??= new PrintBillOptions();
         order ??= new OrderExportDto();
         var baseFontSize = Math.Max(8d, options.FontSize);
-        var tableFontSize = Math.Max(8d, baseFontSize - 1d);
-
         var fixedPage = new FixedPage
         {
             Width = pageWidth,
@@ -581,6 +582,7 @@ public sealed class PrintService : IPrintService
             Child = new TextBlock
             {
                 Text = text,
+                FontFamily = PrintFontFamily,
                 FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
                 FontSize = Math.Max(8d, baseFontSize - 1d),
                 TextAlignment = alignment,
@@ -595,7 +597,7 @@ public sealed class PrintService : IPrintService
 
     private static double MeasureFooterRowHeight(double baseFontSize)
     {
-        var typeface = new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+        var typeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
         var fontSize = Math.Max(8d, baseFontSize - 1d);
         var lineHeight = MeasureSingleLineHeight(typeface, fontSize);
         var baseRowHeight = MmToDip(DotMatrixBaseRowMm);
@@ -611,7 +613,7 @@ public sealed class PrintService : IPrintService
             typeface,
             fontSize,
             Brushes.Black,
-            1.0);
+            MeasurementPixelsPerDip);
         return formattedText.Height;
     }
 
@@ -624,7 +626,7 @@ public sealed class PrintService : IPrintService
             typeface,
             fontSize,
             Brushes.Black,
-            1.0)
+            MeasurementPixelsPerDip)
         {
             MaxTextWidth = Math.Max(8d, maxTextWidth),
             Trimming = TextTrimming.None
@@ -678,12 +680,35 @@ public sealed class PrintService : IPrintService
         double cellPadding)
     {
         const int noteColumnIndex = 8;
-        const double minNoteWidth = 90d;
 
-        var typeface = new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var typeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         var widths = new double[headers.Count];
-        var minWidths = new[] { 70d, 40d, 40d, 35d, 45d, 50d, 60d, 50d, minNoteWidth };
-        var maxWidths = new[] { 140d, 80d, 80d, 65d, 90d, 90d, 90d, 90d, contentWidth };
+        var fontScale = Math.Clamp(baseFontSize / 12d, 0.85d, 1.8d);
+        var minNoteWidth = 68d * fontScale;
+        var minWidths = new[]
+        {
+            48d * fontScale,
+            30d * fontScale,
+            30d * fontScale,
+            28d * fontScale,
+            38d * fontScale,
+            38d * fontScale,
+            38d * fontScale,
+            42d * fontScale,
+            minNoteWidth
+        };
+        var maxWidths = new[]
+        {
+            130d * fontScale,
+            72d * fontScale,
+            72d * fontScale,
+            62d * fontScale,
+            92d * fontScale,
+            92d * fontScale,
+            92d * fontScale,
+            98d * fontScale,
+            contentWidth
+        };
 
         for (var col = 0; col < headers.Count; col++)
         {
@@ -747,7 +772,14 @@ public sealed class PrintService : IPrintService
             noteWidth = contentWidth - nonNoteWidth;
         }
 
-        widths[noteColumnIndex] = Math.Max(40d, noteWidth);
+        widths[noteColumnIndex] = Math.Max(minWidths[noteColumnIndex], noteWidth);
+
+        var totalWidth = widths.Sum();
+        if (totalWidth > contentWidth + 0.1d)
+        {
+            widths[noteColumnIndex] = Math.Max(minWidths[noteColumnIndex], widths[noteColumnIndex] - (totalWidth - contentWidth));
+        }
+
         return widths;
     }
 
@@ -760,8 +792,14 @@ public sealed class PrintService : IPrintService
             typeface,
             fontSize,
             Brushes.Black,
-            1.0);
+            MeasurementPixelsPerDip);
         return formattedText.WidthIncludingTrailingWhitespace;
+    }
+
+    private static double GetPixelsPerDip()
+    {
+        var visual = new DrawingVisual();
+        return VisualTreeHelper.GetDpi(visual).PixelsPerDip;
     }
 
     private static string FormatInt(decimal value)
