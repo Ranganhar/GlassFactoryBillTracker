@@ -808,6 +808,7 @@ public sealed class MainWindowViewModel : ObservableObject
                     var model = vm.BuildModel();
                     var saved = await _orderService.SaveAsync(model, vm.BuildItems(), vm.AttachmentSourcePath, vm.RemoveAttachment);
                     vm.AttachmentRelativePath = saved.AttachmentPath;
+                    vm.AcceptChanges();
                     window.DialogResult = true;
                     window.Close();
                     await ApplyFiltersAsync(force: true, showValidationError: false, preferredOrderId: saved.Id);

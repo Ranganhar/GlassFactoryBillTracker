@@ -131,6 +131,9 @@
                                     <MenuItem Header="复制行"
                                               Command="{Binding DataContext.CopySelectedItemCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                               CommandParameter="{Binding}" />
+                                    <MenuItem Header="删除行"
+                                              Command="{Binding DataContext.DeleteSelectedItemCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                              CommandParameter="{Binding}" />
                                 </ContextMenu>
                             </Setter.Value>
                         </Setter>

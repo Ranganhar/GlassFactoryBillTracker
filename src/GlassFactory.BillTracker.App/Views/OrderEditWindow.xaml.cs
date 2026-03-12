@@ -10,6 +10,7 @@ public partial class OrderEditWindow : Window
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Closing += OnClosing;
         Closed += OnClosed;
     }
 
@@ -27,6 +28,40 @@ public partial class OrderEditWindow : Window
         if (DataContext is OrderEditViewModel vm)
         {
             vm.ValidationFailed -= OnValidationFailed;
+        }
+
+        Closing -= OnClosing;
+    }
+
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (DataContext is not OrderEditViewModel vm || !vm.IsDirty)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            "You have unsaved changes. Save before closing?",
+            "Unsaved Changes",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Warning);
+
+        if (result == MessageBoxResult.Cancel)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        if (result == MessageBoxResult.No)
+        {
+            vm.AcceptChanges();
+            return;
+        }
+
+        e.Cancel = true;
+        if (vm.SaveCommand.CanExecute(null))
+        {
+            vm.SaveCommand.Execute(null);
         }
     }
 

@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using GlassFactory.BillTracker.App.Commands;
@@ -30,6 +32,22 @@ public sealed class OrderEditViewModel : ObservableObject
     private string? _attachmentRelativePath;
     private bool _removeAttachment;
     private bool _isSaving;
+    private bool _isDirty;
+    private bool _suppressDirtyTracking = true;
+
+    private static readonly HashSet<string> TrackedPropertyNames = new()
+    {
+        nameof(SelectedDate),
+        nameof(SelectedHour),
+        nameof(SelectedMinute),
+        nameof(SelectedCustomer),
+        nameof(SelectedPaymentMethod),
+        nameof(SelectedOrderStatus),
+        nameof(Note),
+        nameof(AttachmentSourcePath),
+        nameof(AttachmentRelativePath),
+        nameof(RemoveAttachment)
+    };
 
     public ObservableCollection<OrderItemRowViewModel> Items { get; } = new();
 
@@ -156,6 +174,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
     public RelayCommand AddItemCommand { get; }
     public RelayCommand RemoveSelectedItemCommand { get; }
+    public RelayCommand<OrderItemRowViewModel> DeleteSelectedItemCommand { get; }
     public RelayCommand<OrderItemRowViewModel> CopySelectedItemCommand { get; }
     public RelayCommand SaveCommand { get; }
     public RelayCommand CancelCommand { get; }
@@ -174,6 +193,12 @@ public sealed class OrderEditViewModel : ObservableObject
     public RelayCommand ChooseAttachmentCommand { get; }
     public RelayCommand RemoveAttachmentCommand { get; }
 
+    public bool IsDirty
+    {
+        get => _isDirty;
+        private set => SetProperty(ref _isDirty, value);
+    }
+
     private OrderItemRowViewModel? _selectedItem;
     public OrderItemRowViewModel? SelectedItem
     {
@@ -190,6 +215,9 @@ public sealed class OrderEditViewModel : ObservableObject
     {
         _customers = customers;
         _isEditMode = existing is not null;
+
+        PropertyChanged += OnSelfPropertyChanged;
+        Items.CollectionChanged += OnItemsCollectionChanged;
 
         Id = existing?.Id ?? Guid.Empty;
         OrderNo = existing?.OrderNo ?? orderNo;
@@ -220,6 +248,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
         AddItemCommand = new RelayCommand(AddItem);
         RemoveSelectedItemCommand = new RelayCommand(RemoveSelectedItem);
+        DeleteSelectedItemCommand = new RelayCommand<OrderItemRowViewModel>(DeleteSelectedItem);
         CopySelectedItemCommand = new RelayCommand<OrderItemRowViewModel>(CopySelectedItem);
         SaveCommand = new RelayCommand(OnSave, () => !IsSaving);
         CancelCommand = new RelayCommand(() => Canceled?.Invoke());
@@ -227,6 +256,8 @@ public sealed class OrderEditViewModel : ObservableObject
         RemoveAttachmentCommand = new RelayCommand(RemoveAttachmentAction);
 
         RecalculateTotal();
+        _suppressDirtyTracking = false;
+        AcceptChanges();
     }
 
     public void SetSelectedAttachment(string filePath)
@@ -235,6 +266,11 @@ public sealed class OrderEditViewModel : ObservableObject
         RemoveAttachment = false;
         OnPropertyChanged(nameof(AttachmentDisplayName));
         OnPropertyChanged(nameof(AttachmentPreviewAbsolutePath));
+    }
+
+    public void AcceptChanges()
+    {
+        IsDirty = false;
     }
 
     public OrderEditModel BuildModel()
@@ -279,10 +315,32 @@ public sealed class OrderEditViewModel : ObservableObject
             return;
         }
 
-        Items.Remove(SelectedItem);
+        DeleteItemCore(SelectedItem, showEmptyMessage: false);
+    }
+
+    private void DeleteSelectedItem(OrderItemRowViewModel? sourceRow)
+    {
+        var row = sourceRow ?? SelectedItem;
+        if (row is null)
+        {
+            MessageBox.Show("请先选择要删除的明细行。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        DeleteItemCore(row, showEmptyMessage: true);
+    }
+
+    private void DeleteItemCore(OrderItemRowViewModel row, bool showEmptyMessage)
+    {
+        Items.Remove(row);
         if (Items.Count == 0)
         {
             Items.Add(new OrderItemRowViewModel(RecalculateTotal));
+        }
+
+        if (showEmptyMessage && SelectedItem is null && Items.Count > 0)
+        {
+            SelectedItem = Items[0];
         }
 
         RecalculateTotal();
@@ -398,6 +456,65 @@ public sealed class OrderEditViewModel : ObservableObject
     private static bool IsIntegerValue(decimal value)
     {
         return decimal.Truncate(value) == value;
+    }
+
+    private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (var oldItem in e.OldItems.OfType<OrderItemRowViewModel>())
+            {
+                oldItem.PropertyChanged -= OnItemPropertyChanged;
+            }
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (var newItem in e.NewItems.OfType<OrderItemRowViewModel>())
+            {
+                newItem.PropertyChanged -= OnItemPropertyChanged;
+                newItem.PropertyChanged += OnItemPropertyChanged;
+            }
+        }
+
+        if (!_suppressDirtyTracking)
+        {
+            MarkDirty();
+        }
+    }
+
+    private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressDirtyTracking)
+        {
+            return;
+        }
+
+        if (!string.Equals(e.PropertyName, nameof(OrderItemRowViewModel.Amount), StringComparison.Ordinal))
+        {
+            MarkDirty();
+        }
+    }
+
+    private void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressDirtyTracking || string.IsNullOrWhiteSpace(e.PropertyName))
+        {
+            return;
+        }
+
+        if (TrackedPropertyNames.Contains(e.PropertyName))
+        {
+            MarkDirty();
+        }
+    }
+
+    private void MarkDirty()
+    {
+        if (!_suppressDirtyTracking)
+        {
+            IsDirty = true;
+        }
     }
 
     private DateTime BuildDateTime()
