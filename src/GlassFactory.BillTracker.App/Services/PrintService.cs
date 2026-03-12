@@ -64,7 +64,7 @@ public sealed class PrintService : IPrintService
 
         foreach (var order in orders)
         {
-            var headers = new[] { "型号", "长（mm）", "宽（mm）", "数量", "单价（元/㎡）", "打孔费", "其他费用", "金额（元）", "备注" };
+            var headers = new[] { "型号", "长(mm)", "宽(mm)", "数量", "单价(元/㎡)", "打孔费", "其他费用", "金额(元)", "备注" };
             var sourceRows = (order.Items ?? Array.Empty<OrderExportItemDto>())
                 .Where(item => item is not null)
                 .Select(item => new[]
