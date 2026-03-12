@@ -41,6 +41,15 @@ public sealed class PrintService : IPrintService
         public required bool IncludeFooter { get; init; }
     }
 
+    private sealed class PrintColumnDefinition
+    {
+        public required string Key { get; init; }
+        public required string Title { get; init; }
+        public required double MinWidth { get; init; }
+        public required double MaxWidth { get; init; }
+        public required bool IsNote { get; init; }
+    }
+
     public FixedDocument RenderDotMatrixTriplicate(IReadOnlyList<OrderExportDto> orders, PrintBillOptions options)
     {
         options ??= new PrintBillOptions();
@@ -63,32 +72,35 @@ public sealed class PrintService : IPrintService
         var tableWidth = Math.Max(80d, contentWidth - (DotMatrixInnerPaddingDip * 2d));
         foreach (var order in orders)
         {
-            var headers = new[] { "型号", "长(mm)", "宽(mm)", "数量", "单价(元/㎡)", "打孔费", "其他费用", "金额(元)", "备注" };
+            var columns = CreatePrintColumns();
+            var headers = columns.Select(x => x.Title).ToArray();
             var sourceRows = (order.Items ?? Array.Empty<OrderExportItemDto>())
                 .Where(item => item is not null)
-                .Select(item => new[]
+                .Select(item => new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    item.Model ?? string.Empty,
-                    FormatInt(item.GlassLengthMm),
-                    FormatInt(item.GlassWidthMm),
-                    item.Quantity.ToString(CultureInfo.InvariantCulture),
-                    FormatInt(item.GlassUnitPricePerM2),
-                    FormatInt(item.HoleFee),
-                    FormatInt(item.OtherFee),
-                    FormatMoney2(item.Amount),
-                    item.Note ?? string.Empty
+                    ["Model"] = item.Model ?? string.Empty,
+                    ["Length"] = FormatInt(item.GlassLengthMm),
+                    ["Width"] = FormatInt(item.GlassWidthMm),
+                    ["Quantity"] = item.Quantity.ToString(CultureInfo.InvariantCulture),
+                    ["UnitPrice"] = FormatInt(item.GlassUnitPricePerM2),
+                    ["HoleFee"] = FormatInt(item.HoleFee),
+                    ["OtherFee"] = FormatInt(item.OtherFee),
+                    ["Amount"] = FormatMoney2(item.Amount),
+                    ["Note"] = item.Note ?? string.Empty
                 })
                 .ToList();
 
-            var columnWidths = ComputeColumnWidths(
-                headers,
+            var columnWidthMap = ComputeColumnWidths(
+                columns,
                 sourceRows,
-                tableFontSize,
                 new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+                tableFontSize,
+                MeasurementPixelsPerDip,
                 pageWidth,
                 (margin * 2d) + (DotMatrixInnerPaddingDip * 2d),
-                DotMatrixHorizontalPaddingDip * 2d,
-                DotMatrixMinNoteWidthDip);
+                0d,
+                6d);
+            var columnWidths = columns.Select(column => columnWidthMap[column.Key]).ToList();
             var noteColumnWidth = columnWidths[NoteColumnIndex];
             var noteTextWidth = Math.Max(8d, noteColumnWidth - (DotMatrixHorizontalPaddingDip * 2d));
 
@@ -103,6 +115,7 @@ public sealed class PrintService : IPrintService
                 (int)Math.Floor((pageRowsHeightLimit - (DotMatrixVerticalPaddingDip * 2d)) / Math.Max(1d, MeasureSingleLineHeight(typeface, tableFontSize))));
 
             var rowLayouts = BuildRowLayouts(
+                columns,
                 sourceRows,
                 typeface,
                 tableFontSize,
@@ -171,7 +184,8 @@ public sealed class PrintService : IPrintService
     }
 
     private static IReadOnlyList<DotMatrixRowLayout> BuildRowLayouts(
-        IReadOnlyList<string[]> sourceRows,
+        IReadOnlyList<PrintColumnDefinition> columns,
+        IReadOnlyList<IReadOnlyDictionary<string, string>> sourceRows,
         Typeface typeface,
         double tableFontSize,
         double noteTextWidth,
@@ -182,7 +196,7 @@ public sealed class PrintService : IPrintService
 
         foreach (var source in sourceRows)
         {
-            var wrappedLines = WrapTextToLines(source[NoteColumnIndex], noteTextWidth, typeface, tableFontSize);
+            var wrappedLines = WrapTextToLines(source[columns[NoteColumnIndex].Key], noteTextWidth, typeface, tableFontSize);
             if (wrappedLines.Count == 0)
             {
                 wrappedLines.Add(string.Empty);
@@ -194,10 +208,13 @@ public sealed class PrintService : IPrintService
             {
                 var linesInChunk = Math.Min(maxLinesPerPhysicalRow, wrappedLines.Count - offset);
                 var noteChunk = string.Join("\n", wrappedLines.Skip(offset).Take(linesInChunk));
-                var values = new string[source.Length];
+                var values = new string[columns.Count];
                 if (chunkIndex == 0)
                 {
-                    Array.Copy(source, values, source.Length);
+                    for (var i = 0; i < columns.Count; i++)
+                    {
+                        values[i] = source.TryGetValue(columns[i].Key, out var value) ? value : string.Empty;
+                    }
                 }
                 else
                 {
@@ -510,32 +527,35 @@ public sealed class PrintService : IPrintService
         root.Children.Add(meta);
 
         var rows = (order.Items ?? Array.Empty<OrderExportItemDto>()).Where(item => item is not null).ToList();
-        var headers = new[] { "型号", "长(mm)", "宽(mm)", "数量", "单价(元/㎡)", "打孔费", "其他费用", "金额(元)", "备注" };
-        var valuesByRow = rows.Select(item => new[]
+        var columns = CreatePrintColumns();
+        var headers = columns.Select(x => x.Title).ToArray();
+        var valuesByRow = rows.Select(item => new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            item.Model ?? string.Empty,
-            FormatInt(item.GlassLengthMm),
-            FormatInt(item.GlassWidthMm),
-            item.Quantity.ToString(CultureInfo.InvariantCulture),
-            FormatInt(item.GlassUnitPricePerM2),
-            FormatInt(item.HoleFee),
-            FormatInt(item.OtherFee),
-            FormatMoney2(item.Amount),
-            item.Note ?? string.Empty
+            ["Model"] = item.Model ?? string.Empty,
+            ["Length"] = FormatInt(item.GlassLengthMm),
+            ["Width"] = FormatInt(item.GlassWidthMm),
+            ["Quantity"] = item.Quantity.ToString(CultureInfo.InvariantCulture),
+            ["UnitPrice"] = FormatInt(item.GlassUnitPricePerM2),
+            ["HoleFee"] = FormatInt(item.HoleFee),
+            ["OtherFee"] = FormatInt(item.OtherFee),
+            ["Amount"] = FormatMoney2(item.Amount),
+            ["Note"] = item.Note ?? string.Empty
         }).ToList();
 
         var table = new Grid { Margin = new Thickness(0, 2, 0, 6) };
         var contentWidth = Math.Max(120d, pageWidth - (horizontalPadding * 2d) - tableWidthEpsilon);
         var tableFontSize = Math.Max(8d, baseFontSize - 1d);
-        var columnWidths = ComputeColumnWidths(
-            headers,
+        var columnWidthMap = ComputeColumnWidths(
+            columns,
             valuesByRow,
-            tableFontSize,
             new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            tableFontSize,
+            MeasurementPixelsPerDip,
             pageWidth,
             horizontalPadding * 2d,
-            cellPadding,
-            DotMatrixMinNoteWidthDip);
+            0d,
+            cellPadding);
+        var columnWidths = columns.Select(column => columnWidthMap[column.Key]).ToList();
         TraceTableCoordinates(horizontalPadding, columnWidths, pageWidth, horizontalPadding);
         foreach (var width in columnWidths)
         {
@@ -556,11 +576,12 @@ public sealed class PrintService : IPrintService
         foreach (var values in valuesByRow)
         {
             table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            for (var col = 0; col < values.Length; col++)
+            for (var col = 0; col < columns.Count; col++)
             {
                 var trim = col == 8;
                 double? maxTextWidth = col == 8 ? Math.Max(8d, columnWidths[8] - (DotMatrixHorizontalPaddingDip * 2d)) : null;
-                var cell = CreateCell(values[col], bold: false, baseFontSize, TextAlignment.Left, wrap: col == 8, trim: trim, maxTextWidth: maxTextWidth);
+                var cellValue = values.TryGetValue(columns[col].Key, out var value) ? value : string.Empty;
+                var cell = CreateCell(cellValue, bold: false, baseFontSize, TextAlignment.Left, wrap: col == 8, trim: trim, maxTextWidth: maxTextWidth);
                 Grid.SetRow(cell, rowIndex);
                 Grid.SetColumn(cell, col);
                 table.Children.Add(cell);
@@ -675,7 +696,7 @@ public sealed class PrintService : IPrintService
             foreach (var ch in paragraph)
             {
                 var candidate = string.Concat(current, ch);
-                if (MeasureTextWidth(candidate, typeface, fontSize) <= maxTextWidth || candidate.Length == 1)
+                if (MeasureTextWidth(candidate, typeface, fontSize, MeasurementPixelsPerDip) <= maxTextWidth || candidate.Length == 1)
                 {
                     current = candidate;
                     continue;
@@ -691,102 +712,67 @@ public sealed class PrintService : IPrintService
         return lines;
     }
 
-    private static IReadOnlyList<double> ComputeColumnWidths(
-        IReadOnlyList<string> headers,
-        IReadOnlyList<string[]> rows,
-        double fontSize,
+    private static Dictionary<string, double> ComputeColumnWidths(
+        IReadOnlyList<PrintColumnDefinition> columns,
+        IReadOnlyList<IReadOnlyDictionary<string, string>> rows,
         Typeface typeface,
-        double pageWidthDip,
+        double fontSize,
+        double pixelsPerDip,
+        double printableWidthDip,
         double horizontalMarginsDip,
-        double cellPadding,
-        double minNoteWidthDip)
+        double gapDip,
+        double paddingDip)
     {
-        const int noteColumnIndex = 8;
-        var contentWidth = Math.Max(80d, pageWidthDip - horizontalMarginsDip);
+        var contentWidth = Math.Max(80d, printableWidthDip - horizontalMarginsDip - (gapDip * Math.Max(0, columns.Count - 1)));
+        var widths = new Dictionary<string, double>(StringComparer.Ordinal);
+        var titleWidths = new Dictionary<string, double>(StringComparer.Ordinal);
+        var maxDataWidths = new Dictionary<string, double>(StringComparer.Ordinal);
 
-        var widths = new double[headers.Count];
-        var titleWidths = new double[headers.Count];
-        var maxDataWidths = new double[headers.Count];
-
-        var minNoteWidth = Math.Max(32d, minNoteWidthDip);
-        var minWidths = new[]
+        foreach (var column in columns.Where(x => !x.IsNote))
         {
-            48d,
-            28d,
-            28d,
-            26d,
-            40d,
-            40d,
-            40d,
-            44d,
-            minNoteWidth
-        };
-        var maxWidths = new[]
-        {
-            140d,
-            86d,
-            86d,
-            72d,
-            106d,
-            106d,
-            106d,
-            112d,
-            contentWidth
-        };
-
-        for (var col = 0; col < headers.Count; col++)
-        {
-            if (col == noteColumnIndex)
-            {
-                continue;
-            }
-
-            var titleWidth = MeasureTextWidth(headers[col], typeface, fontSize);
+            var titleWidth = MeasureTextWidth(column.Title, typeface, fontSize, pixelsPerDip);
             var maxDataWidth = 0d;
             foreach (var row in rows)
             {
-                if (col >= row.Length)
-                {
-                    continue;
-                }
-
-                var valueWidth = MeasureTextWidth(row[col], typeface, fontSize);
+                row.TryGetValue(column.Key, out var rowValue);
+                var valueWidth = MeasureTextWidth(rowValue, typeface, fontSize, pixelsPerDip);
                 if (valueWidth > maxDataWidth)
                 {
                     maxDataWidth = valueWidth;
                 }
             }
 
-            titleWidths[col] = titleWidth;
-            maxDataWidths[col] = maxDataWidth;
-            var measured = Math.Max(titleWidth, maxDataWidth) + cellPadding;
-            widths[col] = Math.Clamp(measured, minWidths[col], maxWidths[col]);
+            titleWidths[column.Key] = titleWidth;
+            maxDataWidths[column.Key] = maxDataWidth;
+            var measured = Math.Max(titleWidth, maxDataWidth) + paddingDip;
+            widths[column.Key] = Math.Clamp(measured, column.MinWidth, column.MaxWidth);
         }
 
-        var nonNoteWidth = widths.Where((_, idx) => idx != noteColumnIndex).Sum();
+        var noteColumn = columns.First(x => x.IsNote);
+        var nonNoteWidth = columns.Where(x => !x.IsNote).Sum(x => widths[x.Key]);
         var noteWidth = contentWidth - nonNoteWidth;
-        if (noteWidth < minNoteWidth)
+        if (noteWidth < noteColumn.MinWidth)
         {
-            var deficit = minNoteWidth - noteWidth;
-            var shrinkableColumns = Enumerable.Range(0, headers.Count).Where(i => i != noteColumnIndex).ToList();
+            var deficit = noteColumn.MinWidth - noteWidth;
+            var shrinkableColumns = columns.Where(x => !x.IsNote).ToList();
             while (deficit > 0.1d)
             {
-                var totalSpare = shrinkableColumns.Sum(i => Math.Max(0d, widths[i] - minWidths[i]));
+                var totalSpare = shrinkableColumns.Sum(column => Math.Max(0d, widths[column.Key] - column.MinWidth));
                 if (totalSpare <= 0.1d)
                 {
                     break;
                 }
 
-                foreach (var index in shrinkableColumns)
+                foreach (var column in shrinkableColumns)
                 {
-                    var spare = Math.Max(0d, widths[index] - minWidths[index]);
+                    var spare = Math.Max(0d, widths[column.Key] - column.MinWidth);
                     if (spare <= 0d)
                     {
                         continue;
                     }
 
                     var delta = Math.Min(spare, deficit * (spare / totalSpare));
-                    widths[index] -= delta;
+                    widths[column.Key] -= delta;
                     deficit -= delta;
                     if (deficit <= 0.1d)
                     {
@@ -795,23 +781,33 @@ public sealed class PrintService : IPrintService
                 }
             }
 
-            nonNoteWidth = widths.Where((_, idx) => idx != noteColumnIndex).Sum();
+            nonNoteWidth = columns.Where(x => !x.IsNote).Sum(x => widths[x.Key]);
             noteWidth = contentWidth - nonNoteWidth;
         }
 
-        widths[noteColumnIndex] = Math.Max(minWidths[noteColumnIndex], noteWidth);
+        widths[noteColumn.Key] = noteWidth >= noteColumn.MinWidth
+            ? noteWidth
+            : Math.Max(8d, noteWidth);
 
-        var totalWidth = widths.Sum();
-        if (totalWidth > contentWidth + 0.1d)
-        {
-            var overflow = totalWidth - contentWidth;
-            var adjusted = widths[noteColumnIndex] - overflow;
-            widths[noteColumnIndex] = Math.Max(8d, adjusted);
-        }
-
-        TraceColumnWidthDetails(headers, titleWidths, maxDataWidths, widths, contentWidth);
+        TraceColumnWidthDetails(columns, titleWidths, maxDataWidths, widths, contentWidth);
 
         return widths;
+    }
+
+    private static IReadOnlyList<PrintColumnDefinition> CreatePrintColumns()
+    {
+        return new[]
+        {
+            new PrintColumnDefinition { Key = "Model", Title = "型号", MinWidth = 48d, MaxWidth = 140d, IsNote = false },
+            new PrintColumnDefinition { Key = "Length", Title = "长(mm)", MinWidth = 28d, MaxWidth = 86d, IsNote = false },
+            new PrintColumnDefinition { Key = "Width", Title = "宽(mm)", MinWidth = 28d, MaxWidth = 86d, IsNote = false },
+            new PrintColumnDefinition { Key = "Quantity", Title = "数量", MinWidth = 26d, MaxWidth = 72d, IsNote = false },
+            new PrintColumnDefinition { Key = "UnitPrice", Title = "单价(元/㎡)", MinWidth = 40d, MaxWidth = 106d, IsNote = false },
+            new PrintColumnDefinition { Key = "HoleFee", Title = "打孔费", MinWidth = 40d, MaxWidth = 106d, IsNote = false },
+            new PrintColumnDefinition { Key = "OtherFee", Title = "其他费用", MinWidth = 40d, MaxWidth = 106d, IsNote = false },
+            new PrintColumnDefinition { Key = "Amount", Title = "金额(元)", MinWidth = 44d, MaxWidth = 112d, IsNote = false },
+            new PrintColumnDefinition { Key = "Note", Title = "备注", MinWidth = DotMatrixMinNoteWidthDip, MaxWidth = double.MaxValue, IsNote = true }
+        };
     }
 
     private static double MeasureHeaderBlockHeight(OrderExportDto order, PrintBillOptions options, double maxWidth)
@@ -833,7 +829,7 @@ public sealed class PrintService : IPrintService
         return companyHeight + 2d + metaHeight;
     }
 
-    private static double MeasureTextWidth(string? text, Typeface typeface, double fontSize)
+    private static double MeasureTextWidth(string? text, Typeface typeface, double fontSize, double pixelsPerDip)
     {
         var formattedText = new FormattedText(
             text ?? string.Empty,
@@ -842,7 +838,7 @@ public sealed class PrintService : IPrintService
             typeface,
             fontSize,
             Brushes.Black,
-            MeasurementPixelsPerDip);
+            pixelsPerDip);
         return formattedText.WidthIncludingTrailingWhitespace;
     }
 
@@ -903,19 +899,19 @@ public sealed class PrintService : IPrintService
 
     [Conditional("DEBUG")]
     private static void TraceColumnWidthDetails(
-        IReadOnlyList<string> headers,
-        IReadOnlyList<double> titleWidths,
-        IReadOnlyList<double> dataWidths,
-        IReadOnlyList<double> finalWidths,
+        IReadOnlyList<PrintColumnDefinition> columns,
+        IReadOnlyDictionary<string, double> titleWidths,
+        IReadOnlyDictionary<string, double> dataWidths,
+        IReadOnlyDictionary<string, double> finalWidths,
         double contentWidth)
     {
-        for (var i = 0; i < headers.Count; i++)
+        foreach (var column in columns)
         {
             Debug.WriteLine(
-                $"Print column width: col={i}, header={headers[i]}, titleWidth={titleWidths[i]:F2}, maxDataWidth={dataWidths[i]:F2}, finalWidth={finalWidths[i]:F2}");
+                $"Print column width: key={column.Key}, header={column.Title}, titleWidth={(titleWidths.TryGetValue(column.Key, out var titleWidth) ? titleWidth : 0d):F2}, maxDataWidth={(dataWidths.TryGetValue(column.Key, out var dataWidth) ? dataWidth : 0d):F2}, finalWidth={finalWidths[column.Key]:F2}");
         }
 
-        Debug.WriteLine($"Print column width total: used={finalWidths.Sum():F2}, contentWidth={contentWidth:F2}");
+        Debug.WriteLine($"Print column width total: used={finalWidths.Values.Sum():F2}, contentWidth={contentWidth:F2}, noteWidth={(finalWidths.TryGetValue("Note", out var noteWidth) ? noteWidth : 0d):F2}");
     }
 
 }

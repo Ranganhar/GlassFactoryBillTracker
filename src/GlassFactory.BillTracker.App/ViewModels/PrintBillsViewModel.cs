@@ -119,7 +119,7 @@ public sealed class PrintBillsViewModel : ObservableObject
         {
             if (SetProperty(ref _fontSize, value))
             {
-                _ = RegeneratePreviewAsync();
+                RegeneratePreviewAsync().GetAwaiter().GetResult();
             }
         }
     }
@@ -159,7 +159,8 @@ public sealed class PrintBillsViewModel : ObservableObject
 
     public Task RegeneratePreviewAsync()
     {
-        RequestPreviewRefresh(forceRegenerate: true);
+        _previewDebounceTimer.Stop();
+        RegeneratePreview(force: true);
         return Task.CompletedTask;
     }
 

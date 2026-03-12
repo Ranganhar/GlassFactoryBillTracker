@@ -106,6 +106,7 @@
                       ItemsSource="{Binding Items}"
                       SelectedItem="{Binding SelectedItem}"
                       AutoGenerateColumns="False"
+                      PreviewMouseRightButtonDown="ItemsDataGrid_OnPreviewMouseRightButtonDown"
                       CanUserAddRows="False"
                       CanUserDeleteRows="False">
                 <DataGrid.Resources>
@@ -123,22 +124,6 @@
                     <Style x:Key="IntegerEditingStyle" TargetType="TextBox" BasedOn="{StaticResource RightAlignedEditingStyle}">
                     </Style>
                 </DataGrid.Resources>
-                <DataGrid.RowStyle>
-                    <Style TargetType="DataGridRow">
-                        <Setter Property="ContextMenu">
-                            <Setter.Value>
-                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                    <MenuItem Header="复制行"
-                                              Command="{Binding DataContext.CopySelectedItemCommand, Source={x:Reference ItemsDataGrid}}"
-                                              CommandParameter="{Binding}" />
-                                    <MenuItem Header="删除行"
-                                              Command="{Binding DataContext.DeleteSelectedItemCommand, Source={x:Reference ItemsDataGrid}}"
-                                              CommandParameter="{Binding}" />
-                                </ContextMenu>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </DataGrid.RowStyle>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="型号" Binding="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Width="90" MinWidth="80" MaxWidth="95" EditingElementStyle="{StaticResource ModelEditingStyle}" />
                     <DataGridTextColumn Header="长(mm)" Binding="{Binding GlassLengthMm, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="70" MinWidth="65" MaxWidth="75" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
