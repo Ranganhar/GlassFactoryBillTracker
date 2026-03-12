@@ -22,7 +22,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="140" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="150" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="90" />
             </Grid.ColumnDefinitions>
@@ -34,14 +34,7 @@
                 <ComboBoxItem Content="A4 模板" Tag="{x:Static models:PrintTemplateKind.A4}" />
             </ComboBox>
             <TextBlock Grid.Column="4" Text="联打高度" VerticalAlignment="Center" Margin="12,0,6,0" />
-            <ComboBox Grid.Column="5"
-                      IsEnabled="{Binding IsDotMatrixTemplate}"
-                      SelectedValuePath="Tag"
-                      SelectedValue="{Binding SelectedPaperMode, UpdateSourceTrigger=PropertyChanged}">
-                <ComboBoxItem Content="整张 280mm (1联)" Tag="{x:Static models:DotMatrixHeightMode.Full}" />
-                <ComboBoxItem Content="半张 140mm (2联)" Tag="{x:Static models:DotMatrixHeightMode.Half}" />
-                <ComboBoxItem Content="三分之一 93mm (3联)" Tag="{x:Static models:DotMatrixHeightMode.Third}" />
-            </ComboBox>
+            <TextBlock Grid.Column="5" Text="93mm（单联）" VerticalAlignment="Center" />
             <TextBlock Grid.Column="6" Text="字号" VerticalAlignment="Center" Margin="12,0,6,0" />
             <ComboBox Grid.Column="7" ItemsSource="{Binding FontSizes}" SelectedItem="{Binding FontSize, UpdateSourceTrigger=PropertyChanged}" />
         </Grid>

@@ -136,7 +136,7 @@ public sealed class PrintBillsViewModel : ObservableObject
             UseCustomerPhone = UseCustomerPhone,
             CustomPhone = string.IsNullOrWhiteSpace(CustomPhone) ? null : CustomPhone.Trim(),
             TemplateKind = SelectedTemplate,
-            DotMatrixHeightMode = SelectedPaperMode,
+            DotMatrixHeightMode = DotMatrixHeightMode.Third,
             FontSize = FontSize
         };
     }
@@ -173,7 +173,7 @@ public sealed class PrintBillsViewModel : ObservableObject
         return string.Join("|", new[]
         {
             options.TemplateKind.ToString(),
-            options.DotMatrixHeightMode.ToString(),
+            DotMatrixHeightMode.Third.ToString(),
             options.FontSize.ToString("F0"),
             options.HeaderText ?? string.Empty,
             options.UseCustomerPhone ? "1" : "0",

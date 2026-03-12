@@ -2,8 +2,8 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Markup;
 using System.Windows.Media;
-using System.Diagnostics;
 using System.Windows.Controls;
+using System.Globalization;
 using GlassFactory.BillTracker.App.Models;
 using GlassFactory.BillTracker.Domain.Services;
 
@@ -21,9 +21,7 @@ public sealed class PrintService : IPrintService
         }
 
         var pageWidth = MmToDip(241);
-        var copyHeightMm = GetDotMatrixCopyHeight(options.DotMatrixHeightMode);
-        var copiesPerPage = GetCopiesPerPage(options.DotMatrixHeightMode);
-        var pageHeight = MmToDip(copyHeightMm * copiesPerPage);
+        var pageHeight = MmToDip(93);
 
         foreach (var order in orders)
         {
@@ -34,19 +32,12 @@ public sealed class PrintService : IPrintService
                 Height = pageHeight,
                 Background = Brushes.White
             };
-            var slotHeight = MmToDip(copyHeightMm);
-            var generatedCopies = 0;
 
-            for (var i = 0; i < copiesPerPage; i++)
-            {
-                var copyPanel = CreateBillCopyPanel(order, options, pageWidth, slotHeight, isDotMatrix: true);
-                FixedPage.SetLeft(copyPanel, 0d);
-                FixedPage.SetTop(copyPanel, i * slotHeight);
-                fixedPage.Children.Add(copyPanel);
-                generatedCopies++;
-            }
+            var copyPanel = CreateBillCopyPanel(order, options, pageWidth, pageHeight, isDotMatrix: true);
+            FixedPage.SetLeft(copyPanel, 0d);
+            FixedPage.SetTop(copyPanel, 0d);
+            fixedPage.Children.Add(copyPanel);
 
-            ValidateDotMatrixBlockCount(copiesPerPage, generatedCopies, options.DotMatrixHeightMode);
             ((IAddChild)pageContent).AddChild(fixedPage);
             document.Pages.Add(pageContent);
         }
@@ -91,6 +82,8 @@ public sealed class PrintService : IPrintService
         options ??= new PrintBillOptions();
         order ??= new OrderExportDto();
         var baseFontSize = Math.Max(8d, options.FontSize);
+        var horizontalPadding = isDotMatrix ? 8d : 20d;
+        var cellPadding = 6d;
 
         var outerBorder = new Border
         {
@@ -98,7 +91,7 @@ public sealed class PrintService : IPrintService
             Height = pageHeight,
             BorderBrush = Brushes.Black,
             BorderThickness = new Thickness(0.8),
-            Padding = new Thickness(isDotMatrix ? 8 : 20),
+            Padding = new Thickness(horizontalPadding, isDotMatrix ? 8d : 20d, horizontalPadding, isDotMatrix ? 8d : 20d),
             Margin = new Thickness(0)
         };
 
@@ -130,50 +123,46 @@ public sealed class PrintService : IPrintService
         Grid.SetRow(meta, 1);
         root.Children.Add(meta);
 
+        var rows = (order.Items ?? Array.Empty<OrderExportItemDto>()).Where(item => item is not null).ToList();
+        var headers = new[] { "型号", "长", "宽", "数量", "单价", "打孔费", "其他费用", "金额", "备注" };
+        var valuesByRow = rows.Select(item => new[]
+        {
+            item.Model ?? string.Empty,
+            FormatOneDecimalTrim(item.GlassLengthMm),
+            FormatOneDecimalTrim(item.GlassWidthMm),
+            item.Quantity.ToString(CultureInfo.InvariantCulture),
+            Math.Round(item.GlassUnitPricePerM2, 0, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture),
+            Math.Round(item.HoleFee, 0, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture),
+            Math.Round(item.OtherFee, 0, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture),
+            OrderAmountCalculator.Round(item.Amount).ToString("F2", CultureInfo.InvariantCulture),
+            item.Note ?? string.Empty
+        }).ToList();
+
         var table = new Grid { Margin = new Thickness(0, 2, 0, 6) };
-        var contentWidth = Math.Max(100d, pageWidth - 24d);
-        foreach (var width in BuildColumnWidths(contentWidth))
+        var contentWidth = Math.Max(120d, pageWidth - (horizontalPadding * 2d));
+        var columnWidths = BuildColumnWidths(contentWidth, headers, valuesByRow, baseFontSize, cellPadding);
+        foreach (var width in columnWidths)
         {
             table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
         }
 
-        var headers = new[] { "型号", "长", "宽", "数量", "单价", "打孔", "其他费用", "金额", "备注" };
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (var col = 0; col < headers.Length; col++)
         {
-            var cell = CreateCell(headers[col], bold: true, isDotMatrix, baseFontSize, TextAlignment.Center, wrap: false, trim: true);
+            var cell = CreateCell(headers[col], bold: true, isDotMatrix, baseFontSize, TextAlignment.Left, wrap: false, trim: true);
             Grid.SetRow(cell, 0);
             Grid.SetColumn(cell, col);
             table.Children.Add(cell);
         }
 
         var rowIndex = 1;
-        foreach (var item in order.Items ?? Array.Empty<OrderExportItemDto>())
+        foreach (var values in valuesByRow)
         {
-            if (item is null)
-            {
-                continue;
-            }
-
             table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var values = new[]
-            {
-                item.Model ?? string.Empty,
-                item.GlassLengthMm.ToString("F1"),
-                item.GlassWidthMm.ToString("F1"),
-                item.Quantity.ToString(),
-                Math.Round(item.GlassUnitPricePerM2, 0, MidpointRounding.AwayFromZero).ToString("F0"),
-                Math.Round(item.HoleFee, 0, MidpointRounding.AwayFromZero).ToString("F0"),
-                Math.Round(item.OtherFee, 0, MidpointRounding.AwayFromZero).ToString("F0"),
-                OrderAmountCalculator.Round(item.Amount).ToString("F2"),
-                item.Note ?? string.Empty
-            };
-
             for (var col = 0; col < values.Length; col++)
             {
-                var alignment = col is >= 1 and <= 7 ? TextAlignment.Right : TextAlignment.Left;
                 var trim = col == 8;
-                var cell = CreateCell(values[col], bold: false, isDotMatrix, baseFontSize, alignment, wrap: !trim, trim: trim);
+                var cell = CreateCell(values[col], bold: false, isDotMatrix, baseFontSize, TextAlignment.Left, wrap: col == 8, trim: trim);
                 Grid.SetRow(cell, rowIndex);
                 Grid.SetColumn(cell, col);
                 table.Children.Add(cell);
@@ -215,11 +204,109 @@ public sealed class PrintService : IPrintService
         };
     }
 
-    private static IReadOnlyList<double> BuildColumnWidths(double contentWidth)
+    private static IReadOnlyList<double> BuildColumnWidths(
+        double contentWidth,
+        IReadOnlyList<string> headers,
+        IReadOnlyList<string[]> rows,
+        double baseFontSize,
+        double cellPadding)
     {
-        var weights = new[] { 1.35d, 0.75d, 0.75d, 0.65d, 0.85d, 0.75d, 0.75d, 0.9d, 1.3d };
-        var sum = weights.Sum();
-        return weights.Select(x => contentWidth * x / sum).ToArray();
+        const int noteColumnIndex = 8;
+        const double minNoteWidth = 90d;
+
+        var typeface = new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var widths = new double[headers.Count];
+        var minWidths = new[] { 70d, 40d, 40d, 35d, 45d, 50d, 60d, 50d, minNoteWidth };
+        var maxWidths = new[] { 140d, 80d, 80d, 65d, 90d, 90d, 90d, 90d, contentWidth };
+
+        for (var col = 0; col < headers.Count; col++)
+        {
+            if (col == noteColumnIndex)
+            {
+                continue;
+            }
+
+            var maxTextWidth = MeasureTextWidth(headers[col], typeface, baseFontSize);
+            foreach (var row in rows)
+            {
+                if (col >= row.Length)
+                {
+                    continue;
+                }
+
+                var valueWidth = MeasureTextWidth(row[col], typeface, baseFontSize);
+                if (valueWidth > maxTextWidth)
+                {
+                    maxTextWidth = valueWidth;
+                }
+            }
+
+            var measured = maxTextWidth + cellPadding;
+            widths[col] = Math.Clamp(measured, minWidths[col], maxWidths[col]);
+        }
+
+        var nonNoteWidth = widths.Where((_, idx) => idx != noteColumnIndex).Sum();
+        var noteWidth = contentWidth - nonNoteWidth;
+        if (noteWidth < minNoteWidth)
+        {
+            var deficit = minNoteWidth - noteWidth;
+            var shrinkableColumns = Enumerable.Range(0, headers.Count).Where(i => i != noteColumnIndex).ToList();
+            while (deficit > 0.1d)
+            {
+                var totalSpare = shrinkableColumns.Sum(i => Math.Max(0d, widths[i] - minWidths[i]));
+                if (totalSpare <= 0.1d)
+                {
+                    break;
+                }
+
+                foreach (var index in shrinkableColumns)
+                {
+                    var spare = Math.Max(0d, widths[index] - minWidths[index]);
+                    if (spare <= 0d)
+                    {
+                        continue;
+                    }
+
+                    var delta = Math.Min(spare, deficit * (spare / totalSpare));
+                    widths[index] -= delta;
+                    deficit -= delta;
+                    if (deficit <= 0.1d)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            nonNoteWidth = widths.Where((_, idx) => idx != noteColumnIndex).Sum();
+            noteWidth = contentWidth - nonNoteWidth;
+        }
+
+        widths[noteColumnIndex] = Math.Max(40d, noteWidth);
+        return widths;
+    }
+
+    private static double MeasureTextWidth(string? text, Typeface typeface, double fontSize)
+    {
+        var formattedText = new FormattedText(
+            text ?? string.Empty,
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
+            Brushes.Black,
+            1.0);
+        return formattedText.WidthIncludingTrailingWhitespace;
+    }
+
+    private static string FormatOneDecimalTrim(decimal value)
+    {
+        var rounded = Math.Round(value, 1, MidpointRounding.AwayFromZero);
+        if (decimal.Truncate(rounded) == rounded)
+        {
+            return rounded.ToString("F0", CultureInfo.InvariantCulture);
+        }
+
+        return rounded.ToString("0.0", CultureInfo.InvariantCulture);
     }
 
     private static double MmToDip(double mm)
@@ -227,30 +314,4 @@ public sealed class PrintService : IPrintService
         return mm * 96d / 25.4d;
     }
 
-    private static double GetDotMatrixCopyHeight(DotMatrixHeightMode mode)
-    {
-        return mode switch
-        {
-            DotMatrixHeightMode.Full => 280d,
-            DotMatrixHeightMode.Half => 140d,
-            _ => 93d
-        };
-    }
-
-    private static int GetCopiesPerPage(DotMatrixHeightMode mode)
-    {
-        return mode switch
-        {
-            DotMatrixHeightMode.Full => 1,
-            DotMatrixHeightMode.Half => 2,
-            _ => 3
-        };
-    }
-
-    [Conditional("DEBUG")]
-    private static void ValidateDotMatrixBlockCount(int expected, int actual, DotMatrixHeightMode mode)
-    {
-        Debug.Assert(expected == actual, $"Dot-matrix visual block mismatch. Mode={mode}, expected={expected}, actual={actual}.");
-        Debug.WriteLine($"Dot-matrix visual block count checked. Mode={mode}, expected={expected}, actual={actual}.");
-    }
 }
