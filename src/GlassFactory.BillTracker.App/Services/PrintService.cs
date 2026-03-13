@@ -90,7 +90,7 @@ public sealed class PrintService : IPrintService
                 })
                 .ToList();
 
-            var columnWidthMap = ComputeColumnWidths(
+            var columnWidthMap = ComputeColumnWidthsForPrint(
                 columns,
                 sourceRows,
                 new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
@@ -545,7 +545,7 @@ public sealed class PrintService : IPrintService
         var table = new Grid { Margin = new Thickness(0, 2, 0, 6) };
         var contentWidth = Math.Max(120d, pageWidth - (horizontalPadding * 2d) - tableWidthEpsilon);
         var tableFontSize = Math.Max(8d, baseFontSize - 1d);
-        var columnWidthMap = ComputeColumnWidths(
+        var columnWidthMap = ComputeColumnWidthsForPrint(
             columns,
             valuesByRow,
             new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
@@ -712,7 +712,7 @@ public sealed class PrintService : IPrintService
         return lines;
     }
 
-    private static Dictionary<string, double> ComputeColumnWidths(
+    private static Dictionary<string, double> ComputeColumnWidthsForPrint(
         IReadOnlyList<PrintColumnDefinition> columns,
         IReadOnlyList<IReadOnlyDictionary<string, string>> rows,
         Typeface typeface,
@@ -728,66 +728,103 @@ public sealed class PrintService : IPrintService
         var titleWidths = new Dictionary<string, double>(StringComparer.Ordinal);
         var maxDataWidths = new Dictionary<string, double>(StringComparer.Ordinal);
 
-        foreach (var column in columns.Where(x => !x.IsNote))
+        const string modelKey = "Model";
+        var noteColumn = columns.First(x => x.IsNote);
+        var nonNoteColumns = columns.Where(x => !x.IsNote).ToList();
+        var titleOnlyColumns = nonNoteColumns.Where(x => !string.Equals(x.Key, modelKey, StringComparison.Ordinal)).ToList();
+
+        var modelMaxDataWidth = 0d;
+        foreach (var row in rows)
+        {
+            row.TryGetValue(modelKey, out var modelValue);
+            var valueWidth = MeasureTextWidth(modelValue, typeface, fontSize, pixelsPerDip);
+            if (valueWidth > modelMaxDataWidth)
+            {
+                modelMaxDataWidth = valueWidth;
+            }
+        }
+
+        foreach (var column in nonNoteColumns)
         {
             var titleWidth = MeasureTextWidth(column.Title, typeface, fontSize, pixelsPerDip);
-            var maxDataWidth = 0d;
-            foreach (var row in rows)
-            {
-                row.TryGetValue(column.Key, out var rowValue);
-                var valueWidth = MeasureTextWidth(rowValue, typeface, fontSize, pixelsPerDip);
-                if (valueWidth > maxDataWidth)
-                {
-                    maxDataWidth = valueWidth;
-                }
-            }
+            var maxDataWidth = string.Equals(column.Key, modelKey, StringComparison.Ordinal) ? modelMaxDataWidth : 0d;
 
             titleWidths[column.Key] = titleWidth;
             maxDataWidths[column.Key] = maxDataWidth;
-            var measured = Math.Max(titleWidth, maxDataWidth) + paddingDip;
-            widths[column.Key] = Math.Clamp(measured, column.MinWidth, column.MaxWidth);
+            var measured = Math.Max(titleWidth, maxDataWidth);
+            var withPadding = measured + paddingDip;
+            widths[column.Key] = Math.Clamp(withPadding, column.MinWidth, column.MaxWidth);
         }
 
-        var noteColumn = columns.First(x => x.IsNote);
-        var nonNoteWidth = columns.Where(x => !x.IsNote).Sum(x => widths[x.Key]);
+        var nonNoteWidth = nonNoteColumns.Sum(x => widths[x.Key]);
         var noteWidth = contentWidth - nonNoteWidth;
+
         if (noteWidth < noteColumn.MinWidth)
         {
-            var deficit = noteColumn.MinWidth - noteWidth;
-            var shrinkableColumns = columns.Where(x => !x.IsNote).ToList();
-            while (deficit > 0.1d)
+            var effectivePadding = paddingDip;
+
+            // First, reduce shared padding (but never below 0).
+            var paddingDeficit = noteColumn.MinWidth - noteWidth;
+            if (paddingDeficit > 0.1d && effectivePadding > 0d)
             {
-                var totalSpare = shrinkableColumns.Sum(column => Math.Max(0d, widths[column.Key] - column.MinWidth));
-                if (totalSpare <= 0.1d)
+                var paddingReduction = Math.Min(effectivePadding, paddingDeficit);
+                effectivePadding -= paddingReduction;
+
+                foreach (var column in nonNoteColumns)
                 {
-                    break;
+                    var measuredBase = Math.Max(titleWidths[column.Key], maxDataWidths[column.Key]);
+                    widths[column.Key] = Math.Clamp(measuredBase + effectivePadding, column.MinWidth, column.MaxWidth);
                 }
 
-                foreach (var column in shrinkableColumns)
-                {
-                    var spare = Math.Max(0d, widths[column.Key] - column.MinWidth);
-                    if (spare <= 0d)
-                    {
-                        continue;
-                    }
+                nonNoteWidth = nonNoteColumns.Sum(x => widths[x.Key]);
+                noteWidth = contentWidth - nonNoteWidth;
+            }
 
-                    var delta = Math.Min(spare, deficit * (spare / totalSpare));
-                    widths[column.Key] -= delta;
-                    deficit -= delta;
-                    if (deficit <= 0.1d)
+            // If still insufficient, shrink title-only columns proportionally down to MinWidth.
+            if (noteWidth < noteColumn.MinWidth)
+            {
+                var deficit = noteColumn.MinWidth - noteWidth;
+                while (deficit > 0.1d)
+                {
+                    var totalSpare = titleOnlyColumns.Sum(column => Math.Max(0d, widths[column.Key] - column.MinWidth));
+                    if (totalSpare <= 0.1d)
                     {
                         break;
                     }
-                }
-            }
 
-            nonNoteWidth = columns.Where(x => !x.IsNote).Sum(x => widths[x.Key]);
-            noteWidth = contentWidth - nonNoteWidth;
+                    foreach (var column in titleOnlyColumns)
+                    {
+                        var spare = Math.Max(0d, widths[column.Key] - column.MinWidth);
+                        if (spare <= 0d)
+                        {
+                            continue;
+                        }
+
+                        var delta = Math.Min(spare, deficit * (spare / totalSpare));
+                        widths[column.Key] -= delta;
+                        deficit -= delta;
+                        if (deficit <= 0.1d)
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                nonNoteWidth = nonNoteColumns.Sum(x => widths[x.Key]);
+                noteWidth = contentWidth - nonNoteWidth;
+            }
         }
 
         widths[noteColumn.Key] = noteWidth >= noteColumn.MinWidth
             ? noteWidth
             : Math.Max(8d, noteWidth);
+
+        var totalWidth = nonNoteColumns.Sum(x => widths[x.Key]) + widths[noteColumn.Key];
+        if (totalWidth > contentWidth + 0.1d)
+        {
+            var overflow = totalWidth - contentWidth;
+            widths[noteColumn.Key] = Math.Max(8d, widths[noteColumn.Key] - overflow);
+        }
 
         TraceColumnWidthDetails(columns, titleWidths, maxDataWidths, widths, contentWidth);
 
@@ -905,13 +942,18 @@ public sealed class PrintService : IPrintService
         IReadOnlyDictionary<string, double> finalWidths,
         double contentWidth)
     {
+        var noteWidth = finalWidths.TryGetValue("Note", out var computedNoteWidth) ? computedNoteWidth : 0d;
         foreach (var column in columns)
         {
+            var modelDataWidthText = string.Equals(column.Key, "Model", StringComparison.Ordinal)
+                ? (dataWidths.TryGetValue(column.Key, out var modelDataWidth) ? modelDataWidth.ToString("F2", CultureInfo.InvariantCulture) : "0.00")
+                : "N/A";
+
             Debug.WriteLine(
-                $"Print column width: key={column.Key}, header={column.Title}, titleWidth={(titleWidths.TryGetValue(column.Key, out var titleWidth) ? titleWidth : 0d):F2}, maxDataWidth={(dataWidths.TryGetValue(column.Key, out var dataWidth) ? dataWidth : 0d):F2}, finalWidth={finalWidths[column.Key]:F2}");
+                $"Print column width: key={column.Key}, header={column.Title}, titleWidth={(titleWidths.TryGetValue(column.Key, out var titleWidth) ? titleWidth : 0d):F2}, modelMaxDataWidth={modelDataWidthText}, finalWidth={finalWidths[column.Key]:F2}, noteWidth={noteWidth:F2}");
         }
 
-        Debug.WriteLine($"Print column width total: used={finalWidths.Values.Sum():F2}, contentWidth={contentWidth:F2}, noteWidth={(finalWidths.TryGetValue("Note", out var noteWidth) ? noteWidth : 0d):F2}");
+        Debug.WriteLine($"Print column width total: used={finalWidths.Values.Sum():F2}, contentWidth={contentWidth:F2}, noteWidth={noteWidth:F2}");
     }
 
 }
