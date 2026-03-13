@@ -430,7 +430,7 @@ public sealed class PrintService : IPrintService
         table.RowDefinitions.Add(new RowDefinition { Height = new GridLength(tableHeaderHeight) });
         for (var col = 0; col < headers.Count; col++)
         {
-            var cell = CreateCell(headers[col], bold: true, baseFontSize, TextAlignment.Left, wrap: false, trim: true, maxTextWidth: null);
+            var cell = CreateCell(headers[col], bold: true, baseFontSize, TextAlignment.Left, wrap: false, trim: false, maxTextWidth: null);
             Grid.SetRow(cell, 0);
             Grid.SetColumn(cell, col);
             table.Children.Add(cell);
@@ -566,7 +566,7 @@ public sealed class PrintService : IPrintService
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (var col = 0; col < headers.Length; col++)
         {
-            var cell = CreateCell(headers[col], bold: true, baseFontSize, TextAlignment.Left, wrap: false, trim: true, maxTextWidth: null);
+            var cell = CreateCell(headers[col], bold: true, baseFontSize, TextAlignment.Left, wrap: false, trim: false, maxTextWidth: null);
             Grid.SetRow(cell, 0);
             Grid.SetColumn(cell, col);
             table.Children.Add(cell);
@@ -723,15 +723,10 @@ public sealed class PrintService : IPrintService
         double gapDip,
         double paddingDip)
     {
-        var contentWidth = Math.Max(80d, printableWidthDip - horizontalMarginsDip - (gapDip * Math.Max(0, columns.Count - 1)));
-        var widths = new Dictionary<string, double>(StringComparer.Ordinal);
         var titleWidths = new Dictionary<string, double>(StringComparer.Ordinal);
         var maxDataWidths = new Dictionary<string, double>(StringComparer.Ordinal);
 
         const string modelKey = "Model";
-        var noteColumn = columns.First(x => x.IsNote);
-        var nonNoteColumns = columns.Where(x => !x.IsNote).ToList();
-        var titleOnlyColumns = nonNoteColumns.Where(x => !string.Equals(x.Key, modelKey, StringComparison.Ordinal)).ToList();
 
         var modelMaxDataWidth = 0d;
         foreach (var row in rows)
@@ -744,87 +739,29 @@ public sealed class PrintService : IPrintService
             }
         }
 
-        foreach (var column in nonNoteColumns)
+        foreach (var column in columns)
         {
             var titleWidth = MeasureTextWidth(column.Title, typeface, fontSize, pixelsPerDip);
-            var maxDataWidth = string.Equals(column.Key, modelKey, StringComparison.Ordinal) ? modelMaxDataWidth : 0d;
-
             titleWidths[column.Key] = titleWidth;
-            maxDataWidths[column.Key] = maxDataWidth;
-            var measured = Math.Max(titleWidth, maxDataWidth);
-            var withPadding = measured + paddingDip;
-            widths[column.Key] = Math.Clamp(withPadding, column.MinWidth, column.MaxWidth);
         }
 
-        var nonNoteWidth = nonNoteColumns.Sum(x => widths[x.Key]);
-        var noteWidth = contentWidth - nonNoteWidth;
-
-        if (noteWidth < noteColumn.MinWidth)
-        {
-            var effectivePadding = paddingDip;
-
-            // First, reduce shared padding (but never below 0).
-            var paddingDeficit = noteColumn.MinWidth - noteWidth;
-            if (paddingDeficit > 0.1d && effectivePadding > 0d)
+        maxDataWidths[modelKey] = modelMaxDataWidth;
+        var widthInputs = columns
+            .Select(column => new PrintColumnWidthInput
             {
-                var paddingReduction = Math.Min(effectivePadding, paddingDeficit);
-                effectivePadding -= paddingReduction;
+                Key = column.Key,
+                TitleWidth = titleWidths[column.Key],
+                MinWidth = column.MinWidth,
+                MaxWidth = column.MaxWidth,
+                IsNote = column.IsNote
+            })
+            .ToList();
 
-                foreach (var column in nonNoteColumns)
-                {
-                    var measuredBase = Math.Max(titleWidths[column.Key], maxDataWidths[column.Key]);
-                    widths[column.Key] = Math.Clamp(measuredBase + effectivePadding, column.MinWidth, column.MaxWidth);
-                }
+        var widths = PrintColumnWidthCalculator
+            .Compute(widthInputs, modelMaxDataWidth, printableWidthDip, horizontalMarginsDip, gapDip, paddingDip)
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
 
-                nonNoteWidth = nonNoteColumns.Sum(x => widths[x.Key]);
-                noteWidth = contentWidth - nonNoteWidth;
-            }
-
-            // If still insufficient, shrink title-only columns proportionally down to MinWidth.
-            if (noteWidth < noteColumn.MinWidth)
-            {
-                var deficit = noteColumn.MinWidth - noteWidth;
-                while (deficit > 0.1d)
-                {
-                    var totalSpare = titleOnlyColumns.Sum(column => Math.Max(0d, widths[column.Key] - column.MinWidth));
-                    if (totalSpare <= 0.1d)
-                    {
-                        break;
-                    }
-
-                    foreach (var column in titleOnlyColumns)
-                    {
-                        var spare = Math.Max(0d, widths[column.Key] - column.MinWidth);
-                        if (spare <= 0d)
-                        {
-                            continue;
-                        }
-
-                        var delta = Math.Min(spare, deficit * (spare / totalSpare));
-                        widths[column.Key] -= delta;
-                        deficit -= delta;
-                        if (deficit <= 0.1d)
-                        {
-                            break;
-                        }
-                    }
-                }
-
-                nonNoteWidth = nonNoteColumns.Sum(x => widths[x.Key]);
-                noteWidth = contentWidth - nonNoteWidth;
-            }
-        }
-
-        widths[noteColumn.Key] = noteWidth >= noteColumn.MinWidth
-            ? noteWidth
-            : Math.Max(8d, noteWidth);
-
-        var totalWidth = nonNoteColumns.Sum(x => widths[x.Key]) + widths[noteColumn.Key];
-        if (totalWidth > contentWidth + 0.1d)
-        {
-            var overflow = totalWidth - contentWidth;
-            widths[noteColumn.Key] = Math.Max(8d, widths[noteColumn.Key] - overflow);
-        }
+        var contentWidth = Math.Max(80d, printableWidthDip - horizontalMarginsDip - (gapDip * Math.Max(0, columns.Count - 1)));
 
         TraceColumnWidthDetails(columns, titleWidths, maxDataWidths, widths, contentWidth);
 
@@ -835,14 +772,14 @@ public sealed class PrintService : IPrintService
     {
         return new[]
         {
-            new PrintColumnDefinition { Key = "Model", Title = "型号", MinWidth = 48d, MaxWidth = 140d, IsNote = false },
-            new PrintColumnDefinition { Key = "Length", Title = "长(mm)", MinWidth = 28d, MaxWidth = 86d, IsNote = false },
-            new PrintColumnDefinition { Key = "Width", Title = "宽(mm)", MinWidth = 28d, MaxWidth = 86d, IsNote = false },
-            new PrintColumnDefinition { Key = "Quantity", Title = "数量", MinWidth = 26d, MaxWidth = 72d, IsNote = false },
-            new PrintColumnDefinition { Key = "UnitPrice", Title = "单价(元/㎡)", MinWidth = 40d, MaxWidth = 106d, IsNote = false },
-            new PrintColumnDefinition { Key = "HoleFee", Title = "打孔费", MinWidth = 40d, MaxWidth = 106d, IsNote = false },
-            new PrintColumnDefinition { Key = "OtherFee", Title = "其他费用", MinWidth = 40d, MaxWidth = 106d, IsNote = false },
-            new PrintColumnDefinition { Key = "Amount", Title = "金额(元)", MinWidth = 44d, MaxWidth = 112d, IsNote = false },
+            new PrintColumnDefinition { Key = "Model", Title = "型号", MinWidth = 48d, MaxWidth = double.MaxValue, IsNote = false },
+            new PrintColumnDefinition { Key = "Length", Title = "长(mm)", MinWidth = 28d, MaxWidth = double.MaxValue, IsNote = false },
+            new PrintColumnDefinition { Key = "Width", Title = "宽(mm)", MinWidth = 28d, MaxWidth = double.MaxValue, IsNote = false },
+            new PrintColumnDefinition { Key = "Quantity", Title = "数量", MinWidth = 26d, MaxWidth = double.MaxValue, IsNote = false },
+            new PrintColumnDefinition { Key = "UnitPrice", Title = "单价(元/㎡)", MinWidth = 40d, MaxWidth = double.MaxValue, IsNote = false },
+            new PrintColumnDefinition { Key = "HoleFee", Title = "打孔费", MinWidth = 40d, MaxWidth = double.MaxValue, IsNote = false },
+            new PrintColumnDefinition { Key = "OtherFee", Title = "其他费用", MinWidth = 40d, MaxWidth = double.MaxValue, IsNote = false },
+            new PrintColumnDefinition { Key = "Amount", Title = "金额(元)", MinWidth = 44d, MaxWidth = double.MaxValue, IsNote = false },
             new PrintColumnDefinition { Key = "Note", Title = "备注", MinWidth = DotMatrixMinNoteWidthDip, MaxWidth = double.MaxValue, IsNote = true }
         };
     }
