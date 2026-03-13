@@ -21,4 +21,7 @@ public sealed class PrintBillOptions
     public PrintTemplateKind TemplateKind { get; init; } = PrintTemplateKind.DotMatrix;
     public DotMatrixHeightMode DotMatrixHeightMode { get; init; } = DotMatrixHeightMode.Third;
     public double FontSize { get; init; } = 12d;
+
+    // Single user-facing hook for print table cell horizontal padding tuning.
+    public double CellPaddingDip { get; init; } = 8d;
 }

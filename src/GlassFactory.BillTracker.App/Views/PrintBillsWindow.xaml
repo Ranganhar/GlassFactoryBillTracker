@@ -44,13 +44,17 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="90" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <CheckBox Grid.Column="0" Content="使用客户电话" IsChecked="{Binding UseCustomerPhone}" VerticalAlignment="Center" />
             <TextBlock Grid.Column="1" Text="自定义电话" VerticalAlignment="Center" Margin="12,0,6,0" />
             <TextBox Grid.Column="2" Text="{Binding CustomPhone, UpdateSourceTrigger=PropertyChanged}" />
-            <Button Grid.Column="4" Content="选择打印机" Width="120" Margin="10,0,0,0" Click="SelectPrinterButton_Click" />
+            <TextBlock Grid.Column="3" Text="Padding" VerticalAlignment="Center" Margin="12,0,6,0" />
+            <ComboBox Grid.Column="4" ItemsSource="{Binding CellPaddingOptions}" SelectedItem="{Binding CellPaddingDip, UpdateSourceTrigger=PropertyChanged}" />
+            <Button Grid.Column="6" Content="选择打印机" Width="120" Margin="10,0,0,0" Click="SelectPrinterButton_Click" />
         </Grid>
 
         <Grid Grid.Row="2" Margin="0,0,0,8">

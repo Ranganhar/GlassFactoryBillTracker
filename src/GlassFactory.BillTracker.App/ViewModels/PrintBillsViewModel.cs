@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Windows.Documents;
 using System.Windows.Threading;
 using GlassFactory.BillTracker.App.Models;
@@ -23,6 +24,7 @@ public sealed class PrintBillsViewModel : ObservableObject
     private PrintTemplateKind _selectedTemplate = PrintTemplateKind.DotMatrix;
     private DotMatrixHeightMode _selectedPaperMode = DotMatrixHeightMode.Third;
     private int _fontSize = 12;
+    private double _cellPaddingDip = 8d;
     private FixedDocument _previewDocument = new();
 
     public PrintBillsViewModel(IReadOnlyList<OrderExportDto> orders, IPrintService printService)
@@ -32,6 +34,7 @@ public sealed class PrintBillsViewModel : ObservableObject
 
         Orders = new ObservableCollection<OrderExportDto>(_orders);
         FontSizes = new ReadOnlyCollection<int>(new[] { 10, 12, 14, 16, 18 });
+        CellPaddingOptions = new ReadOnlyCollection<double>(new[] { 4d, 6d, 8d, 10d, 12d });
 
         _previewDebounceTimer = new DispatcherTimer
         {
@@ -50,6 +53,8 @@ public sealed class PrintBillsViewModel : ObservableObject
     public ObservableCollection<OrderExportDto> Orders { get; }
 
     public IReadOnlyList<int> FontSizes { get; }
+
+    public IReadOnlyList<double> CellPaddingOptions { get; }
 
     public string HeaderText
     {
@@ -119,7 +124,20 @@ public sealed class PrintBillsViewModel : ObservableObject
         {
             if (SetProperty(ref _fontSize, value))
             {
-                RegeneratePreviewAsync().GetAwaiter().GetResult();
+                RegeneratePreviewImmediately();
+            }
+        }
+    }
+
+    public double CellPaddingDip
+    {
+        get => _cellPaddingDip;
+        set
+        {
+            var normalized = Math.Clamp(value, 0d, 20d);
+            if (SetProperty(ref _cellPaddingDip, normalized))
+            {
+                RegeneratePreviewImmediately();
             }
         }
     }
@@ -141,7 +159,8 @@ public sealed class PrintBillsViewModel : ObservableObject
             CustomPhone = string.IsNullOrWhiteSpace(CustomPhone) ? null : CustomPhone.Trim(),
             TemplateKind = SelectedTemplate,
             DotMatrixHeightMode = DotMatrixHeightMode.Third,
-            FontSize = FontSize
+            FontSize = FontSize,
+            CellPaddingDip = CellPaddingDip
         };
     }
 
@@ -174,6 +193,7 @@ public sealed class PrintBillsViewModel : ObservableObject
 
         var options = BuildOptions();
         var cacheKey = BuildCacheKey(options);
+        TracePreviewRegeneration(options, cacheKey, force);
         if (force || !_previewCache.TryGetValue(cacheKey, out var document))
         {
             document = options.TemplateKind == PrintTemplateKind.DotMatrix
@@ -192,10 +212,24 @@ public sealed class PrintBillsViewModel : ObservableObject
             options.TemplateKind.ToString(),
             DotMatrixHeightMode.Third.ToString(),
             options.FontSize.ToString("F0"),
+            options.CellPaddingDip.ToString("F2"),
             PrintFontFamilyName,
             options.HeaderText ?? string.Empty,
             options.UseCustomerPhone ? "1" : "0",
             options.CustomPhone ?? string.Empty
         });
+    }
+
+    private void RegeneratePreviewImmediately()
+    {
+        _previewDebounceTimer.Stop();
+        _previewCache.Clear();
+        RegeneratePreview(force: true);
+    }
+
+    [Conditional("DEBUG")]
+    private static void TracePreviewRegeneration(PrintBillOptions options, string cacheKey, bool force)
+    {
+        Debug.WriteLine($"Print preview regenerate: force={force}, fontSize={options.FontSize:F0}, paddingDip={options.CellPaddingDip:F2}, key={cacheKey}");
     }
 }
