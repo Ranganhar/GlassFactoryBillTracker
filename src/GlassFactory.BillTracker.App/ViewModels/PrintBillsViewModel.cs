@@ -119,7 +119,8 @@ public sealed class PrintBillsViewModel : ObservableObject
         {
             if (SetProperty(ref _fontSize, value))
             {
-                RegeneratePreviewAsync().GetAwaiter().GetResult();
+                _previewCache.Clear();
+                RegeneratePreview(force: true);
             }
         }
     }
@@ -140,7 +141,7 @@ public sealed class PrintBillsViewModel : ObservableObject
             UseCustomerPhone = UseCustomerPhone,
             CustomPhone = string.IsNullOrWhiteSpace(CustomPhone) ? null : CustomPhone.Trim(),
             TemplateKind = SelectedTemplate,
-            DotMatrixHeightMode = DotMatrixHeightMode.Third,
+            DotMatrixHeightMode = SelectedPaperMode,
             FontSize = FontSize
         };
     }
@@ -190,7 +191,7 @@ public sealed class PrintBillsViewModel : ObservableObject
         return string.Join("|", new[]
         {
             options.TemplateKind.ToString(),
-            DotMatrixHeightMode.Third.ToString(),
+            options.DotMatrixHeightMode.ToString(),
             options.FontSize.ToString("F0"),
             PrintFontFamilyName,
             options.HeaderText ?? string.Empty,
