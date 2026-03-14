@@ -6,7 +6,7 @@ namespace GlassFactory.BillTracker.Tests;
 public class OrderAmountCalculatorTests
 {
     [Fact]
-    public void CalculateAmountAndTotal_ShouldUseWireUnitPriceAndRoundToInteger_AwayFromZero()
+    public void CalculateAmountAndTotal_ShouldUseHoleAndOtherFeeAndRoundToInteger_AwayFromZero()
     {
         var item1 = new OrderItem
         {
@@ -35,11 +35,11 @@ public class OrderAmountCalculatorTests
         var amount1 = OrderAmountCalculator.CalculateAmount(item1);
         var amount2 = OrderAmountCalculator.CalculateAmount(item2);
 
-        Assert.Equal(224m, amount1);
-        Assert.Equal(363m, amount2);
+        Assert.Equal(218m, amount1);
+        Assert.Equal(360m, amount2);
 
         var total = OrderAmountCalculator.CalculateOrderTotal(new[] { item1, item2 });
-        Assert.Equal(587m, total);
+        Assert.Equal(578m, total);
 
         var rounded = OrderAmountCalculator.Round(1.23445m);
         Assert.Equal(1.23m, rounded);
@@ -68,7 +68,7 @@ public class OrderAmountCalculatorTests
             GlassLengthMm = 1000m,
             GlassWidthMm = 1000m,
             Quantity = 1,
-            GlassUnitPricePerM2 = 1.5m,
+            GlassUnitPricePerM2 = 1.4m,
             Model = "R-02",
             WireType = "丝B",
             WireUnitPrice = 0m,
@@ -79,9 +79,9 @@ public class OrderAmountCalculatorTests
         var rowAmount2 = OrderAmountCalculator.CalculateAmount(item2);
         var total = OrderAmountCalculator.CalculateOrderTotal(new[] { item1, item2 });
 
-        Assert.Equal(2m, rowAmount1);
-        Assert.Equal(2m, rowAmount2);
-        Assert.Equal(4m, total);
+        Assert.Equal(1m, rowAmount1);
+        Assert.Equal(1m, rowAmount2);
+        Assert.Equal(2m, total);
 
         var rawSumRounded = OrderAmountCalculator.RoundAmount(
             OrderAmountCalculator.CalculateRawAmount(item1) +
@@ -89,5 +89,28 @@ public class OrderAmountCalculatorTests
 
         Assert.Equal(3m, rawSumRounded);
         Assert.NotEqual(rawSumRounded, total);
+    }
+
+    [Fact]
+    public void CalculateAmountAndTotal_ShouldIncludeHoleFee_Regression()
+    {
+        var item = new OrderItem
+        {
+            GlassLengthMm = 1000m,
+            GlassWidthMm = 1000m,
+            Quantity = 1,
+            GlassUnitPricePerM2 = 10m,
+            HoleFee = 3m,
+            OtherFee = 2m,
+            Model = "H-01",
+            WireType = "",
+            WireUnitPrice = 999m
+        };
+
+        var rowAmount = OrderAmountCalculator.CalculateAmount(item);
+        var totalAmount = OrderAmountCalculator.CalculateOrderTotal(new[] { item });
+
+        Assert.Equal(15m, rowAmount);
+        Assert.Equal(15m, totalAmount);
     }
 }

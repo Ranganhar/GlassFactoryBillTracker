@@ -17,7 +17,7 @@ public static class OrderAmountCalculator
 
     public static decimal CalculateRawAmount(OrderItem item)
     {
-        return CalculateGlassCost(item) + item.WireUnitPrice + item.OtherFee;
+        return CalculateGlassCost(item) + item.HoleFee + item.OtherFee;
     }
 
     public static decimal CalculateAmount(OrderItem item)
