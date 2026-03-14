@@ -233,7 +233,7 @@ public sealed class ExportService : IExportService
         {
             var area = OrderAmountCalculator.CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm);
             var glassCost = OrderAmountCalculator.CalculateGlassCost(item);
-            var amount = OrderAmountCalculator.CalculateAmount(item);
+            var amount = OrderAmountCalculator.Round(item.Amount);
 
             sheet.Cell(row, 1).Value = orderNoMap.TryGetValue(item.OrderId, out var orderNo) ? orderNo : string.Empty;
             sheet.Cell(row, 2).Value = item.Model;

@@ -199,7 +199,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
     {
         return new OrderItemRowViewModel(recalculateCallback)
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.Empty,
             GlassLengthMm = GlassLengthMm,
             GlassWidthMm = GlassWidthMm,
             Quantity = Quantity,

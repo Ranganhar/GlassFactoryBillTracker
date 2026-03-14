@@ -363,7 +363,7 @@ public sealed class OrderService : IOrderService
         if (duplicateIncomingIds.Count > 0)
         {
             Log.Warning("保存订单被拦截：发现重复明细Id，OrderId={OrderId}, DuplicateCount={DuplicateCount}", orderModel.Id, duplicateIncomingIds.Count);
-            throw new InvalidOperationException("订单明细存在重复标识，请重新复制后再保存。");
+            throw new InvalidOperationException("明细行存在重复 ID，请重新复制行后再保存。");
         }
 
         await using var db = AppRuntimeContext.CreateDbContext();
@@ -391,7 +391,7 @@ public sealed class OrderService : IOrderService
             {
                 var newItem = new OrderItem
                 {
-                    Id = item.Id == Guid.Empty ? Guid.NewGuid() : item.Id,
+                    Id = Guid.NewGuid(),
                     OrderId = entity.Id,
                     GlassLengthMm = item.GlassLengthMm,
                     GlassWidthMm = item.GlassWidthMm,

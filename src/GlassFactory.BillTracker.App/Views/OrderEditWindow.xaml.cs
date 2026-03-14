@@ -1,8 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Input;
-using System.Windows.Media;
 using GlassFactory.BillTracker.App.ViewModels;
 
 namespace GlassFactory.BillTracker.App.Views;
@@ -23,7 +20,6 @@ public partial class OrderEditWindow : Window
         {
             vm.ValidationFailed -= OnValidationFailed;
             vm.ValidationFailed += OnValidationFailed;
-            InitializeItemsContextMenu(vm);
         }
     }
 
@@ -92,59 +88,4 @@ public partial class OrderEditWindow : Window
         }
     }
 
-    private void InitializeItemsContextMenu(OrderEditViewModel vm)
-    {
-        if (ItemsDataGrid.ContextMenu is not null)
-        {
-            ItemsDataGrid.ContextMenu.DataContext = vm;
-            return;
-        }
-
-        var contextMenu = new ContextMenu
-        {
-            DataContext = vm
-        };
-
-        var selectedItemBinding = new Binding(nameof(ItemsDataGrid.SelectedItem))
-        {
-            Source = ItemsDataGrid
-        };
-
-        var copyMenuItem = new MenuItem
-        {
-            Header = "复制行",
-            Command = vm.CopySelectedItemCommand
-        };
-        copyMenuItem.SetBinding(MenuItem.CommandParameterProperty, selectedItemBinding);
-
-        var deleteMenuItem = new MenuItem
-        {
-            Header = "删除行",
-            Command = vm.DeleteSelectedItemCommand
-        };
-        deleteMenuItem.SetBinding(MenuItem.CommandParameterProperty, selectedItemBinding);
-
-        contextMenu.Items.Add(copyMenuItem);
-        contextMenu.Items.Add(deleteMenuItem);
-        ItemsDataGrid.ContextMenu = contextMenu;
-    }
-
-    private void ItemsDataGrid_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        var dependencyObject = e.OriginalSource as DependencyObject;
-        while (dependencyObject is not null && dependencyObject is not DataGridRow)
-        {
-            dependencyObject = VisualTreeHelper.GetParent(dependencyObject);
-        }
-
-        if (dependencyObject is DataGridRow row)
-        {
-            row.IsSelected = true;
-            ItemsDataGrid.SelectedItem = row.Item;
-            if (ItemsDataGrid.Columns.Count > 0)
-            {
-                ItemsDataGrid.CurrentCell = new DataGridCellInfo(row.Item, ItemsDataGrid.Columns[0]);
-            }
-        }
-    }
 }

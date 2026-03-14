@@ -460,7 +460,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
         if (duplicateIds.Count > 0)
         {
-            MessageBox.Show("明细行存在重复标识，请重新复制后再保存。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("明细行存在重复 ID，请重新复制行后再保存。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

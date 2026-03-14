@@ -106,7 +106,6 @@
                       ItemsSource="{Binding Items}"
                       SelectedItem="{Binding SelectedItem}"
                       AutoGenerateColumns="False"
-                      PreviewMouseRightButtonDown="ItemsDataGrid_OnPreviewMouseRightButtonDown"
                       CanUserAddRows="False"
                       CanUserDeleteRows="False">
                 <DataGrid.Resources>
