@@ -830,7 +830,7 @@ public sealed class PrintService : IPrintService
 
     private static string FormatMoney2(decimal value)
     {
-        return OrderAmountCalculator.Round(value).ToString("F2", CultureInfo.InvariantCulture);
+        return OrderAmountCalculator.RoundAmount(value).ToString("F0", CultureInfo.InvariantCulture);
     }
 
     private static double MmToDip(double mm)

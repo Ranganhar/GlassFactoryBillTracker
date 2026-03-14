@@ -17,20 +17,19 @@ public static class OrderAmountCalculator
 
     public static decimal CalculateRawAmount(OrderItem item)
     {
-        return CalculateGlassCost(item) + item.HoleFee + item.OtherFee;
+        return CalculateGlassCost(item) + item.WireUnitPrice + item.OtherFee;
     }
 
     public static decimal CalculateAmount(OrderItem item)
     {
         var rawAmount = CalculateRawAmount(item);
-        return Round(rawAmount);
+        return RoundAmount(rawAmount);
     }
 
     public static decimal CalculateOrderTotal(IEnumerable<OrderItem> items)
     {
-        // Total must be the sum of per-row rounded amounts.
-        var sum = items.Sum(item => Round(CalculateRawAmount(item)));
-        return Round(sum);
+        var sum = items.Sum(item => RoundAmount(CalculateRawAmount(item)));
+        return RoundAmount(sum);
     }
 
     public static void ApplyAmount(OrderItem item)
@@ -51,5 +50,10 @@ public static class OrderAmountCalculator
     public static decimal Round(decimal value)
     {
         return Math.Round(value, 2, MidpointRounding.AwayFromZero);
+    }
+
+    public static decimal RoundAmount(decimal value)
+    {
+        return Math.Round(value, 0, MidpointRounding.AwayFromZero);
     }
 }

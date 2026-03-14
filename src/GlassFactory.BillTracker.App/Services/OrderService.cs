@@ -367,6 +367,7 @@ public sealed class OrderService : IOrderService
         }
 
         await using var db = AppRuntimeContext.CreateDbContext();
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         var now = DateTime.Now;
 
         Order entity;
@@ -407,6 +408,7 @@ public sealed class OrderService : IOrderService
 
                 OrderAmountCalculator.ApplyAmount(newItem);
                 entity.Items.Add(newItem);
+                db.Entry(newItem).State = EntityState.Added;
             }
 
             entity.TotalAmount = OrderAmountCalculator.CalculateOrderTotal(entity.Items);
@@ -427,24 +429,15 @@ public sealed class OrderService : IOrderService
             entity.UpdatedAt = now;
 
             var existingItemById = entity.Items.ToDictionary(x => x.Id, x => x);
-            var touchedIds = new HashSet<Guid>();
+            var originalExistingIds = existingItemById.Keys.ToHashSet();
+            var retainedExistingIds = new HashSet<Guid>();
 
             foreach (var item in items)
             {
                 if (item.Id != Guid.Empty && existingItemById.TryGetValue(item.Id, out var trackedItem))
                 {
-                    trackedItem.GlassLengthMm = item.GlassLengthMm;
-                    trackedItem.GlassWidthMm = item.GlassWidthMm;
-                    trackedItem.Quantity = item.Quantity;
-                    trackedItem.GlassUnitPricePerM2 = item.GlassUnitPricePerM2;
-                    trackedItem.Model = item.Model;
-                    trackedItem.WireType = item.WireType;
-                    trackedItem.WireUnitPrice = item.WireUnitPrice;
-                    trackedItem.HoleFee = item.HoleFee;
-                    trackedItem.OtherFee = item.OtherFee;
-                    trackedItem.Note = item.Note;
-                    OrderAmountCalculator.ApplyAmount(trackedItem);
-                    touchedIds.Add(trackedItem.Id);
+                    ApplyIncomingItemIfChanged(trackedItem, item);
+                    retainedExistingIds.Add(trackedItem.Id);
                     continue;
                 }
 
@@ -466,13 +459,15 @@ public sealed class OrderService : IOrderService
 
                 OrderAmountCalculator.ApplyAmount(newItem);
                 entity.Items.Add(newItem);
-                touchedIds.Add(newItem.Id);
+                db.Entry(newItem).State = EntityState.Added;
             }
 
-            var removedItems = entity.Items.Where(x => !touchedIds.Contains(x.Id)).ToList();
+            var removedItems = entity.Items
+                .Where(x => originalExistingIds.Contains(x.Id) && !retainedExistingIds.Contains(x.Id))
+                .ToList();
             if (removedItems.Count > 0)
             {
-                db.OrderItems.RemoveRange(removedItems);
+                // Remove through tracked navigation collection so EF performs a single orphan-delete action per row.
                 foreach (var removedItem in removedItems)
                 {
                     entity.Items.Remove(removedItem);
@@ -485,9 +480,11 @@ public sealed class OrderService : IOrderService
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException ex)
         {
+            await tx.RollbackAsync(cancellationToken);
             Log.Error(ex, "保存订单发生并发冲突，OrderId={OrderId}, OrderNo={OrderNo}", orderModel.Id, orderModel.OrderNo);
             throw new InvalidOperationException("订单已被修改或删除，请刷新后重试。", ex);
         }
@@ -555,11 +552,45 @@ public sealed class OrderService : IOrderService
             throw new InvalidOperationException("明细中的型号不能为空。");
         }
 
-        if (item.GlassUnitPricePerM2 < 0 || item.HoleFee < 0 || item.OtherFee < 0)
+        if (item.GlassUnitPricePerM2 < 0 || item.WireUnitPrice < 0 || item.HoleFee < 0 || item.OtherFee < 0)
         {
             throw new InvalidOperationException("明细中的单价与费用不能为负数。");
         }
 
+    }
+
+    private static void ApplyIncomingItemIfChanged(OrderItem trackedItem, OrderItem incomingItem)
+    {
+        var recalculatedAmount = OrderAmountCalculator.CalculateAmount(incomingItem);
+        var changed =
+            trackedItem.GlassLengthMm != incomingItem.GlassLengthMm ||
+            trackedItem.GlassWidthMm != incomingItem.GlassWidthMm ||
+            trackedItem.Quantity != incomingItem.Quantity ||
+            trackedItem.GlassUnitPricePerM2 != incomingItem.GlassUnitPricePerM2 ||
+            !string.Equals(trackedItem.Model, incomingItem.Model, StringComparison.Ordinal) ||
+            !string.Equals(trackedItem.WireType, incomingItem.WireType, StringComparison.Ordinal) ||
+            trackedItem.WireUnitPrice != incomingItem.WireUnitPrice ||
+            trackedItem.HoleFee != incomingItem.HoleFee ||
+            trackedItem.OtherFee != incomingItem.OtherFee ||
+            !string.Equals(trackedItem.Note ?? string.Empty, incomingItem.Note ?? string.Empty, StringComparison.Ordinal) ||
+            trackedItem.Amount != recalculatedAmount;
+
+        if (!changed)
+        {
+            return;
+        }
+
+        trackedItem.GlassLengthMm = incomingItem.GlassLengthMm;
+        trackedItem.GlassWidthMm = incomingItem.GlassWidthMm;
+        trackedItem.Quantity = incomingItem.Quantity;
+        trackedItem.GlassUnitPricePerM2 = incomingItem.GlassUnitPricePerM2;
+        trackedItem.Model = incomingItem.Model;
+        trackedItem.WireType = incomingItem.WireType;
+        trackedItem.WireUnitPrice = incomingItem.WireUnitPrice;
+        trackedItem.HoleFee = incomingItem.HoleFee;
+        trackedItem.OtherFee = incomingItem.OtherFee;
+        trackedItem.Note = incomingItem.Note;
+        trackedItem.Amount = recalculatedAmount;
     }
 
     private static IQueryable<Order> ApplySorting(IQueryable<Order> query, string sortBy, bool desc)

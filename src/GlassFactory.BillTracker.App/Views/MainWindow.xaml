@@ -207,7 +207,7 @@
                                 <DataGridTextColumn Header="客户" Binding="{Binding CustomerName}" SortMemberPath="CustomerName" Width="120" IsReadOnly="True" />
                                 <DataGridTextColumn Header="支付方式" Binding="{Binding PaymentMethod}" SortMemberPath="PaymentMethod" Width="100" IsReadOnly="True" />
                                 <DataGridTextColumn Header="订单状态" Binding="{Binding OrderStatus}" SortMemberPath="OrderStatus" Width="100" IsReadOnly="True" />
-                                <DataGridTextColumn Header="总金额" Binding="{Binding TotalAmount, StringFormat=F2}" SortMemberPath="TotalAmount" Width="120" IsReadOnly="True" />
+                                <DataGridTextColumn Header="总金额" Binding="{Binding TotalAmount, StringFormat=F0}" SortMemberPath="TotalAmount" Width="120" IsReadOnly="True" />
                                 <DataGridTextColumn Header="备注" Binding="{Binding Note}" SortMemberPath="Note" Width="*" IsReadOnly="True" />
                             </DataGrid.Columns>
                         </DataGrid>

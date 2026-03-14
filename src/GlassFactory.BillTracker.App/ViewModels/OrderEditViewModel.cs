@@ -431,7 +431,7 @@ public sealed class OrderEditViewModel : ObservableObject
                 return;
             }
 
-            if (row.GlassUnitPricePerM2 < 0 || row.HoleFee < 0 || row.OtherFee < 0)
+            if (row.GlassUnitPricePerM2 < 0 || row.WireUnitPrice < 0 || row.HoleFee < 0 || row.OtherFee < 0)
             {
                 MessageBox.Show("明细单价与费用不能为负数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -443,9 +443,9 @@ public sealed class OrderEditViewModel : ObservableObject
                 return;
             }
 
-            if (!IsIntegerValue(row.GlassUnitPricePerM2) || !IsIntegerValue(row.HoleFee) || !IsIntegerValue(row.OtherFee))
+            if (!IsIntegerValue(row.GlassUnitPricePerM2) || !IsIntegerValue(row.WireUnitPrice) || !IsIntegerValue(row.HoleFee) || !IsIntegerValue(row.OtherFee))
             {
-                MessageBox.Show("单价、打孔费、其他费用必须为整数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("单价、丝单价、打孔费、其他费用必须为整数。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
         }

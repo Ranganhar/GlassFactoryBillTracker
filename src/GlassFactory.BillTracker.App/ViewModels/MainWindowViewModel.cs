@@ -214,7 +214,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
-    public string ResultSummaryText => $"共 {ResultCount} 条订单，合计金额 SumTotal={ResultTotalAmount:F4}";
+    public string ResultSummaryText => $"共 {ResultCount} 条订单，合计金额 SumTotal={ResultTotalAmount:F0}";
 
     public int SelectedOrderCount
     {
@@ -1196,7 +1196,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private static void ShowExportResult(string exportType, ExportResult result)
     {
-        var message = $"{exportType} 导出完成。\n\n保存位置：{result.FilePath}\n订单数：{result.OrdersCount}\n明细数：{result.ItemsCount}\n合计金额：{result.SumTotalAmount:F2}\n\n是否打开所在文件夹？";
+        var message = $"{exportType} 导出完成。\n\n保存位置：{result.FilePath}\n订单数：{result.OrdersCount}\n明细数：{result.ItemsCount}\n合计金额：{result.SumTotalAmount:F0}\n\n是否打开所在文件夹？";
         var open = MessageBox.Show(message, "导出成功", MessageBoxButton.YesNo, MessageBoxImage.Information);
         if (open != MessageBoxResult.Yes)
         {

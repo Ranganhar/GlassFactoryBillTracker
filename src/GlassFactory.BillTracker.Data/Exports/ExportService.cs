@@ -40,7 +40,7 @@ public sealed class ExportService : IExportService
             FilePath = actualPath,
             OrdersCount = orders.Count,
             ItemsCount = items.Count,
-            SumTotalAmount = OrderAmountCalculator.Round(orders.Sum(x => x.TotalAmount))
+            SumTotalAmount = OrderAmountCalculator.RoundAmount(orders.Sum(x => x.TotalAmount))
         };
     }
 
@@ -56,7 +56,7 @@ public sealed class ExportService : IExportService
             CustomerName = x.Customer.Name,
             PaymentMethod = x.PaymentMethod.ToString(),
             OrderStatus = x.OrderStatus.ToString(),
-            TotalAmount = OrderAmountCalculator.Round(x.TotalAmount),
+            TotalAmount = OrderAmountCalculator.RoundAmount(x.TotalAmount),
             x.Note,
             x.AttachmentPath
         }).ToList();
@@ -71,7 +71,7 @@ public sealed class ExportService : IExportService
             FilePath = actualPath,
             OrdersCount = orders.Count,
             ItemsCount = 0,
-            SumTotalAmount = OrderAmountCalculator.Round(orders.Sum(x => x.TotalAmount))
+            SumTotalAmount = OrderAmountCalculator.RoundAmount(orders.Sum(x => x.TotalAmount))
         };
     }
 
@@ -191,7 +191,7 @@ public sealed class ExportService : IExportService
             sheet.Cell(row, 3).Value = order.Customer.Name;
             sheet.Cell(row, 4).Value = order.PaymentMethod.ToString();
             sheet.Cell(row, 5).Value = order.OrderStatus.ToString();
-            sheet.Cell(row, 6).Value = OrderAmountCalculator.Round(order.TotalAmount);
+            sheet.Cell(row, 6).Value = OrderAmountCalculator.RoundAmount(order.TotalAmount);
             sheet.Cell(row, 7).Value = order.Note ?? string.Empty;
             sheet.Cell(row, 8).Value = order.AttachmentPath ?? string.Empty;
             row++;
@@ -199,9 +199,10 @@ public sealed class ExportService : IExportService
 
         var totalRow = row;
         sheet.Cell(totalRow, 1).Value = "合计";
-        sheet.Cell(totalRow, 6).Value = OrderAmountCalculator.Round(orders.Sum(x => x.TotalAmount));
+        sheet.Cell(totalRow, 6).Value = OrderAmountCalculator.RoundAmount(orders.Sum(x => x.TotalAmount));
 
         ApplySheetStyle(sheet, totalRow, 8, amountColumns: new[] { 6 }, dateColumns: new[] { 2 });
+        sheet.Column(6).Style.NumberFormat.Format = "0";
     }
 
     private static void WriteOrderItemsSheet(IXLWorksheet sheet, IReadOnlyList<OrderItem> items, IReadOnlyDictionary<Guid, string> orderNoMap)
@@ -233,7 +234,7 @@ public sealed class ExportService : IExportService
         {
             var area = OrderAmountCalculator.CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm);
             var glassCost = OrderAmountCalculator.CalculateGlassCost(item);
-            var amount = OrderAmountCalculator.Round(item.Amount);
+            var amount = OrderAmountCalculator.RoundAmount(item.Amount);
 
             sheet.Cell(row, 1).Value = orderNoMap.TryGetValue(item.OrderId, out var orderNo) ? orderNo : string.Empty;
             sheet.Cell(row, 2).Value = item.Model;
@@ -259,6 +260,7 @@ public sealed class ExportService : IExportService
         sheet.Column(6).Style.NumberFormat.Format = "0";
         sheet.Column(10).Style.NumberFormat.Format = "0";
         sheet.Column(11).Style.NumberFormat.Format = "0";
+        sheet.Column(12).Style.NumberFormat.Format = "0";
     }
 
     private static void WriteByCustomerSheet(IXLWorksheet sheet, IReadOnlyList<Order> orders)
@@ -299,18 +301,19 @@ public sealed class ExportService : IExportService
                 sheet.Cell(row, 2).Value = order.DateTime;
                 sheet.Cell(row, 3).Value = order.PaymentMethod.ToString();
                 sheet.Cell(row, 4).Value = order.OrderStatus.ToString();
-                sheet.Cell(row, 5).Value = OrderAmountCalculator.Round(order.TotalAmount);
+                sheet.Cell(row, 5).Value = OrderAmountCalculator.RoundAmount(order.TotalAmount);
                 sheet.Cell(row, 6).Value = order.Note ?? string.Empty;
                 row++;
             }
 
             sheet.Cell(row, 4).Value = "小计";
-            sheet.Cell(row, 5).Value = OrderAmountCalculator.Round(group.Sum(x => x.TotalAmount));
+            sheet.Cell(row, 5).Value = OrderAmountCalculator.RoundAmount(group.Sum(x => x.TotalAmount));
             sheet.Range(row, 4, row, 5).Style.Font.Bold = true;
             row += 2;
         }
 
         ApplySheetStyle(sheet, row - 1, 8, amountColumns: new[] { 5 }, dateColumns: new[] { 2 });
+        sheet.Column(5).Style.NumberFormat.Format = "0";
     }
 
     private static void ApplySheetStyle(
