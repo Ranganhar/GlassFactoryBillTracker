@@ -23,7 +23,18 @@ public sealed class PrintBillsViewModel : ObservableObject
     private PrintTemplateKind _selectedTemplate = PrintTemplateKind.DotMatrix;
     private DotMatrixHeightMode _selectedPaperMode = DotMatrixHeightMode.Third;
     private int _fontSize = 12;
+    private bool _fitToPageScale = true;
+    private int _manualScalePercent = 100;
+    private string _currentScaleDisplay = "Current scale: 100% (no printer selected)";
     private FixedDocument _previewDocument = new();
+
+    private string? _printerName;
+    private bool _printerImageableAreaKnown;
+    private bool _printerImageableAreaFromCapabilities;
+    private double _printerImageableOriginXDip;
+    private double _printerImageableOriginYDip;
+    private double _printerImageableWidthDip;
+    private double _printerImageableHeightDip;
 
     public PrintBillsViewModel(IReadOnlyList<OrderExportDto> orders, IPrintService printService)
     {
@@ -32,6 +43,7 @@ public sealed class PrintBillsViewModel : ObservableObject
 
         Orders = new ObservableCollection<OrderExportDto>(_orders);
         FontSizes = new ReadOnlyCollection<int>(new[] { 10, 12, 14, 16, 18 });
+        ScalePercentOptions = new ReadOnlyCollection<int>(new[] { 90, 95, 100, 105, 110 });
 
         _previewDebounceTimer = new DispatcherTimer
         {
@@ -45,11 +57,14 @@ public sealed class PrintBillsViewModel : ObservableObject
         };
 
         RegeneratePreview(force: true);
+        UpdateScaleDisplay();
     }
 
     public ObservableCollection<OrderExportDto> Orders { get; }
 
     public IReadOnlyList<int> FontSizes { get; }
+
+    public IReadOnlyList<int> ScalePercentOptions { get; }
 
     public string HeaderText
     {
@@ -125,6 +140,42 @@ public sealed class PrintBillsViewModel : ObservableObject
         }
     }
 
+    public bool FitToPageScale
+    {
+        get => _fitToPageScale;
+        set
+        {
+            if (SetProperty(ref _fitToPageScale, value))
+            {
+                OnPropertyChanged(nameof(IsManualScaleEnabled));
+                UpdateScaleDisplay();
+                RequestPreviewRefresh(forceRegenerate: true);
+            }
+        }
+    }
+
+    public int ManualScalePercent
+    {
+        get => _manualScalePercent;
+        set
+        {
+            var normalized = Math.Clamp(value, 50, 150);
+            if (SetProperty(ref _manualScalePercent, normalized))
+            {
+                UpdateScaleDisplay();
+                RequestPreviewRefresh(forceRegenerate: true);
+            }
+        }
+    }
+
+    public bool IsManualScaleEnabled => !FitToPageScale;
+
+    public string CurrentScaleDisplay
+    {
+        get => _currentScaleDisplay;
+        private set => SetProperty(ref _currentScaleDisplay, value);
+    }
+
     public FixedDocument PreviewDocument
     {
         get => _previewDocument;
@@ -132,6 +183,42 @@ public sealed class PrintBillsViewModel : ObservableObject
     }
 
     public bool IsDotMatrixTemplate => SelectedTemplate == PrintTemplateKind.DotMatrix;
+
+    public void SetPrinterImageableArea(
+        string? printerName,
+        bool fromCapabilities,
+        double originX,
+        double originY,
+        double width,
+        double height)
+    {
+        _printerName = printerName;
+        _printerImageableAreaKnown = width > 0d && height > 0d;
+        _printerImageableAreaFromCapabilities = fromCapabilities;
+        _printerImageableOriginXDip = Math.Max(0d, originX);
+        _printerImageableOriginYDip = Math.Max(0d, originY);
+        _printerImageableWidthDip = Math.Max(0d, width);
+        _printerImageableHeightDip = Math.Max(0d, height);
+
+        _previewCache.Clear();
+        UpdateScaleDisplay();
+        RequestPreviewRefresh(forceRegenerate: true);
+    }
+
+    public void ClearPrinterImageableArea()
+    {
+        _printerName = null;
+        _printerImageableAreaKnown = false;
+        _printerImageableAreaFromCapabilities = false;
+        _printerImageableOriginXDip = 0d;
+        _printerImageableOriginYDip = 0d;
+        _printerImageableWidthDip = 0d;
+        _printerImageableHeightDip = 0d;
+
+        _previewCache.Clear();
+        UpdateScaleDisplay();
+        RequestPreviewRefresh(forceRegenerate: true);
+    }
 
     public PrintBillOptions BuildOptions()
     {
@@ -142,7 +229,16 @@ public sealed class PrintBillsViewModel : ObservableObject
             CustomPhone = string.IsNullOrWhiteSpace(CustomPhone) ? null : CustomPhone.Trim(),
             TemplateKind = SelectedTemplate,
             DotMatrixHeightMode = SelectedPaperMode,
-            FontSize = FontSize
+            FontSize = FontSize,
+            FitToPageScale = FitToPageScale,
+            ManualScalePercent = ManualScalePercent,
+            PrinterName = _printerName,
+            PrinterImageableAreaKnown = _printerImageableAreaKnown,
+            PrinterImageableAreaFromCapabilities = _printerImageableAreaFromCapabilities,
+            PrinterImageableOriginXDip = _printerImageableOriginXDip,
+            PrinterImageableOriginYDip = _printerImageableOriginYDip,
+            PrinterImageableWidthDip = _printerImageableWidthDip,
+            PrinterImageableHeightDip = _printerImageableHeightDip
         };
     }
 
@@ -193,10 +289,38 @@ public sealed class PrintBillsViewModel : ObservableObject
             options.TemplateKind.ToString(),
             options.DotMatrixHeightMode.ToString(),
             options.FontSize.ToString("F0"),
+            options.FitToPageScale ? "fit" : "manual",
+            options.ManualScalePercent.ToString(),
             PrintFontFamilyName,
             options.HeaderText ?? string.Empty,
             options.UseCustomerPhone ? "1" : "0",
-            options.CustomPhone ?? string.Empty
+            options.CustomPhone ?? string.Empty,
+            options.PrinterName ?? string.Empty,
+            options.PrinterImageableAreaKnown ? "1" : "0",
+            options.PrinterImageableAreaFromCapabilities ? "1" : "0",
+            options.PrinterImageableOriginXDip.ToString("F2"),
+            options.PrinterImageableOriginYDip.ToString("F2"),
+            options.PrinterImageableWidthDip.ToString("F2"),
+            options.PrinterImageableHeightDip.ToString("F2")
         });
+    }
+
+    private void UpdateScaleDisplay()
+    {
+        var result = PrintScaleCalculator.Compute(BuildOptions());
+        var percent = (int)Math.Round(result.Scale * 100d, MidpointRounding.AwayFromZero);
+        if (!FitToPageScale)
+        {
+            CurrentScaleDisplay = $"Current scale: {percent}% (manual)";
+            return;
+        }
+
+        if (result.IsFromPrinter)
+        {
+            CurrentScaleDisplay = $"Current scale: {percent}% (based on printer)";
+            return;
+        }
+
+        CurrentScaleDisplay = "Current scale: 100% (no printer selected)";
     }
 }

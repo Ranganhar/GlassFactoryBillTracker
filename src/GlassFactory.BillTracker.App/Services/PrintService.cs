@@ -74,6 +74,8 @@ public sealed class PrintService : IPrintService
 
         var pageWidth = MmToDip(DotMatrixPageWidthMm);
         var pageHeight = MmToDip(DotMatrixPageHeightMm);
+        var scaleResult = PrintScaleCalculator.Compute(options);
+        TraceScaleSelection(options, scaleResult, pageWidth, pageHeight);
         var margin = MmToDip(DotMatrixMarginMm);
         var baseFontSize = Math.Max(8d, options.FontSize);
         var tableFontSize = Math.Max(8d, baseFontSize - 1d);
@@ -145,6 +147,7 @@ public sealed class PrintService : IPrintService
                     columns,
                     pageWidth,
                     pageHeight,
+                    scaleResult,
                     margin,
                     headerHeight,
                     tableHeaderHeight,
@@ -316,6 +319,7 @@ public sealed class PrintService : IPrintService
         IReadOnlyList<PrintColumnDefinition> columns,
         double pageWidth,
         double pageHeight,
+        PrintScaleResult scaleResult,
         double margin,
         double measuredHeaderHeight,
         double tableHeaderHeight,
@@ -330,8 +334,8 @@ public sealed class PrintService : IPrintService
         var baseFontSize = Math.Max(8d, options.FontSize);
         var fixedPage = new FixedPage
         {
-            Width = pageWidth,
-            Height = pageHeight,
+            Width = scaleResult.ViewportWidthDip,
+            Height = scaleResult.ViewportHeightDip,
             Background = Brushes.White
         };
 
@@ -344,8 +348,8 @@ public sealed class PrintService : IPrintService
             Padding = new Thickness(DotMatrixInnerPaddingDip),
             SnapsToDevicePixels = true
         };
-        FixedPage.SetLeft(contentBorder, margin);
-        FixedPage.SetTop(contentBorder, margin);
+        Canvas.SetLeft(contentBorder, margin);
+        Canvas.SetTop(contentBorder, margin);
 
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(measuredHeaderHeight + DotMatrixHeaderGapDip) });
@@ -393,7 +397,23 @@ public sealed class PrintService : IPrintService
         root.Children.Add(table);
 
         contentBorder.Child = root;
-        fixedPage.Children.Add(contentBorder);
+
+        var transformedRoot = new Canvas
+        {
+            Width = pageWidth,
+            Height = pageHeight,
+            RenderTransform = new TransformGroup
+            {
+                Children =
+                {
+                    new ScaleTransform(scaleResult.Scale, scaleResult.Scale),
+                    new TranslateTransform(scaleResult.TranslateXDip, scaleResult.TranslateYDip)
+                }
+            }
+        };
+        transformedRoot.Children.Add(contentBorder);
+
+        fixedPage.Children.Add(transformedRoot);
         return fixedPage;
     }
 
@@ -1073,6 +1093,13 @@ public sealed class PrintService : IPrintService
         {
             Debug.WriteLine($"Print row height: index={i}, height={rowLayouts[i].Height:F2}, wrapped={rowLayouts[i].NoteWrapped}");
         }
+    }
+
+    [Conditional("DEBUG")]
+    private static void TraceScaleSelection(PrintBillOptions options, PrintScaleResult result, double contentWidthDip, double contentHeightDip)
+    {
+        Debug.WriteLine(
+            $"Print scale: printer={options.PrinterName ?? string.Empty}, fit={options.FitToPageScale}, manual={options.ManualScalePercent}%, imageableKnown={options.PrinterImageableAreaKnown}, imageableFromCaps={options.PrinterImageableAreaFromCapabilities}, origin=({options.PrinterImageableOriginXDip:F2},{options.PrinterImageableOriginYDip:F2}), imageable=({options.PrinterImageableWidthDip:F2}x{options.PrinterImageableHeightDip:F2}), logical=({contentWidthDip:F2}x{contentHeightDip:F2}), scale={result.Scale:F4}, translate=({result.TranslateXDip:F2},{result.TranslateYDip:F2}), viewport=({result.ViewportWidthDip:F2}x{result.ViewportHeightDip:F2}), source={result.Source}");
     }
 
 }
