@@ -16,9 +16,6 @@ public sealed class PrintService : IPrintService
     private static readonly FontFamily PrintFontFamily = new("Microsoft YaHei");
     private static readonly double MeasurementPixelsPerDip = GetPixelsPerDip();
 
-    private const double DotMatrixPageWidthMm = 210d;
-    private const double DotMatrixPageHeightMm = 93d;
-    private const double DotMatrixMarginMm = 5d;
     private const double DotMatrixTableHeaderMm = 7d;
     private const double DotMatrixBaseRowMm = 6.5d;
     private const double CellPaddingLeftDip = 3d;
@@ -72,11 +69,15 @@ public sealed class PrintService : IPrintService
             return document;
         }
 
-        var pageWidth = MmToDip(DotMatrixPageWidthMm);
-        var pageHeight = MmToDip(DotMatrixPageHeightMm);
+        var layoutSettings = options.LayoutSettings ?? new PrintLayoutSettings();
+        var pageWidth = MmToDip(layoutSettings.PrintableWidthMm);
+        var pageHeight = MmToDip(layoutSettings.PrintableHeightMm);
         var scaleResult = PrintScaleCalculator.Compute(options);
         TraceScaleSelection(options, scaleResult, pageWidth, pageHeight);
-        var margin = MmToDip(DotMatrixMarginMm);
+        var marginLeft = MmToDip(layoutSettings.MarginLeftMm);
+        var marginRight = MmToDip(layoutSettings.MarginRightMm);
+        var marginTop = MmToDip(layoutSettings.MarginTopMm);
+        var marginBottom = MmToDip(layoutSettings.MarginBottomMm);
         var baseFontSize = Math.Max(8d, options.FontSize);
         var tableFontSize = Math.Max(8d, baseFontSize - 1d);
         var rowVerticalPadding = CellPaddingTopDip + CellPaddingBottomDip;
@@ -85,8 +86,8 @@ public sealed class PrintService : IPrintService
             MmToDip(DotMatrixTableHeaderMm),
             MeasureSingleLineHeight(new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal), tableFontSize) + rowVerticalPadding);
 
-        var contentWidth = pageWidth - (margin * 2d);
-        var contentHeight = pageHeight - (margin * 2d);
+        var contentWidth = pageWidth - marginLeft - marginRight;
+        var contentHeight = pageHeight - marginTop - marginBottom;
         var tableWidth = Math.Max(80d, contentWidth - (DotMatrixInnerPaddingDip * 2d));
         var typeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         foreach (var order in orders)
@@ -148,7 +149,10 @@ public sealed class PrintService : IPrintService
                     pageWidth,
                     pageHeight,
                     scaleResult,
-                    margin,
+                    marginLeft,
+                    marginTop,
+                    marginRight,
+                    marginBottom,
                     headerHeight,
                     tableHeaderHeight,
                     columnWidths,
@@ -320,7 +324,10 @@ public sealed class PrintService : IPrintService
         double pageWidth,
         double pageHeight,
         PrintScaleResult scaleResult,
-        double margin,
+        double marginLeft,
+        double marginTop,
+        double marginRight,
+        double marginBottom,
         double measuredHeaderHeight,
         double tableHeaderHeight,
         IReadOnlyList<double> columnWidths,
@@ -341,15 +348,15 @@ public sealed class PrintService : IPrintService
 
         var contentBorder = new Border
         {
-            Width = pageWidth - (margin * 2d),
-            Height = pageHeight - (margin * 2d),
+            Width = pageWidth - marginLeft - marginRight,
+            Height = pageHeight - marginTop - marginBottom,
             BorderBrush = Brushes.Black,
             BorderThickness = new Thickness(DotMatrixOuterBorderDip),
             Padding = new Thickness(DotMatrixInnerPaddingDip),
             SnapsToDevicePixels = true
         };
-        Canvas.SetLeft(contentBorder, margin);
-        Canvas.SetTop(contentBorder, margin);
+        Canvas.SetLeft(contentBorder, marginLeft);
+        Canvas.SetTop(contentBorder, marginTop);
 
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(measuredHeaderHeight + DotMatrixHeaderGapDip) });

@@ -62,11 +62,11 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <CheckBox Grid.Column="0" Content="适合页面大小" IsChecked="{Binding FitToPageScale, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="缩放 %" verticalalignment="center" margin="12,0,6,0" />
-            <combobox grid.column="2" width="90" itemssource="{binding scalepercentoptions}" selecteditem="{binding manualscalepercent, updatesourcetrigger=propertychanged}" isenabled="{binding ismanualscaleenabled}" />
-            <textblock grid.column="4" text="{binding currentscaledisplay}" foreground="gray" verticalalignment="center" margin="12,0,0,0" />
-        </grid>
+            <CheckBox Grid.Column="0" Content="适合页面大小（缩放）" IsChecked="{Binding FitToPageScale, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="缩放比例(%)" VerticalAlignment="Center" Margin="12,0,6,0" />
+            <ComboBox Grid.Column="2" Width="90" ItemsSource="{Binding ScalePercentOptions}" SelectedItem="{Binding ManualScalePercent, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualScaleEnabled}" />
+            <TextBlock Grid.Column="4" Text="{Binding CurrentScaleDisplay}" Foreground="Gray" VerticalAlignment="Center" Margin="12,0,0,0" />
+        </Grid>
 
         <Grid Grid.Row="3" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
@@ -76,6 +76,7 @@
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="打印预览" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
             <TextBlock Grid.Column="1" x:Name="PrinterTextBlock" VerticalAlignment="Center" Foreground="Gray" />
+            <TextBlock Grid.Column="2" Text="{Binding PrintableAreaDisplay}" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="Gray" />
         </Grid>
 
         <Grid Grid.Row="4" Margin="0,0,0,8">

@@ -15,6 +15,7 @@ public enum DotMatrixHeightMode
 
 public sealed class PrintBillOptions
 {
+    public PrintLayoutSettings LayoutSettings { get; init; } = new();
     public string HeaderText { get; init; } = "亿达夹丝玻璃";
     public bool UseCustomerPhone { get; init; } = true;
     public string? CustomPhone { get; init; }

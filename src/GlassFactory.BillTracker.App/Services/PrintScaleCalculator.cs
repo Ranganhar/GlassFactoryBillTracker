@@ -15,12 +15,13 @@ public static class PrintScaleCalculator
 {
     public const double MinScale = 0.5d;
     public const double MaxScale = 1.5d;
-    public static readonly double LogicalContentWidthDip = MmToDip(210d);
-    public static readonly double LogicalContentHeightDip = MmToDip(93d);
 
     public static PrintScaleResult Compute(PrintBillOptions options)
     {
         options ??= new PrintBillOptions();
+        var layoutSettings = options.LayoutSettings ?? new PrintLayoutSettings();
+        var logicalContentWidthDip = MmToDip(layoutSettings.PrintableWidthMm);
+        var logicalContentHeightDip = MmToDip(layoutSettings.PrintableHeightMm);
 
         var hasImageableArea = options.PrinterImageableAreaKnown
             && options.PrinterImageableWidthDip > 0d
@@ -33,8 +34,8 @@ public static class PrintScaleCalculator
             if (hasImageableArea)
             {
                 var raw = Math.Min(
-                    options.PrinterImageableWidthDip / LogicalContentWidthDip,
-                    options.PrinterImageableHeightDip / LogicalContentHeightDip);
+                    options.PrinterImageableWidthDip / logicalContentWidthDip,
+                    options.PrinterImageableHeightDip / logicalContentHeightDip);
                 scale = Clamp(raw, MinScale, MaxScale);
                 source = options.PrinterImageableAreaFromCapabilities ? "caps-fit" : "fallback-fit";
             }
@@ -53,19 +54,19 @@ public static class PrintScaleCalculator
 
         var translateX = 0d;
         var translateY = 0d;
-        var viewportWidth = LogicalContentWidthDip;
-        var viewportHeight = LogicalContentHeightDip;
+        var viewportWidth = logicalContentWidthDip;
+        var viewportHeight = logicalContentHeightDip;
 
         if (hasImageableArea)
         {
-            var scaledWidth = LogicalContentWidthDip * scale;
-            var scaledHeight = LogicalContentHeightDip * scale;
+            var scaledWidth = logicalContentWidthDip * scale;
+            var scaledHeight = logicalContentHeightDip * scale;
             var centeredX = Math.Max(0d, (options.PrinterImageableWidthDip - scaledWidth) / 2d);
             var centeredY = Math.Max(0d, (options.PrinterImageableHeightDip - scaledHeight) / 2d);
             translateX = options.PrinterImageableOriginXDip + centeredX;
             translateY = options.PrinterImageableOriginYDip + centeredY;
-            viewportWidth = Math.Max(LogicalContentWidthDip, options.PrinterImageableOriginXDip + options.PrinterImageableWidthDip);
-            viewportHeight = Math.Max(LogicalContentHeightDip, options.PrinterImageableOriginYDip + options.PrinterImageableHeightDip);
+            viewportWidth = Math.Max(logicalContentWidthDip, options.PrinterImageableOriginXDip + options.PrinterImageableWidthDip);
+            viewportHeight = Math.Max(logicalContentHeightDip, options.PrinterImageableOriginYDip + options.PrinterImageableHeightDip);
         }
 
         return new PrintScaleResult(

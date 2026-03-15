@@ -16,6 +16,7 @@ public sealed class PrintBillsViewModel : ObservableObject
     private readonly DispatcherTimer _previewDebounceTimer;
     private readonly Dictionary<string, FixedDocument> _previewCache = new(StringComparer.Ordinal);
     private bool _forceRegeneratePreview;
+    private readonly PrintLayoutSettings _layoutSettings = new();
 
     private string _headerText = "亿达夹丝玻璃";
     private bool _useCustomerPhone = true;
@@ -184,6 +185,8 @@ public sealed class PrintBillsViewModel : ObservableObject
 
     public bool IsDotMatrixTemplate => SelectedTemplate == PrintTemplateKind.DotMatrix;
 
+    public string PrintableAreaDisplay => $"打印区域：{_layoutSettings.PrintableWidthMm:F0}mm x {_layoutSettings.PrintableHeightMm:F0}mm";
+
     public void SetPrinterImageableArea(
         string? printerName,
         bool fromCapabilities,
@@ -224,6 +227,7 @@ public sealed class PrintBillsViewModel : ObservableObject
     {
         return new PrintBillOptions
         {
+            LayoutSettings = _layoutSettings,
             HeaderText = string.IsNullOrWhiteSpace(HeaderText) ? "亿达夹丝玻璃" : HeaderText.Trim(),
             UseCustomerPhone = UseCustomerPhone,
             CustomPhone = string.IsNullOrWhiteSpace(CustomPhone) ? null : CustomPhone.Trim(),
@@ -301,7 +305,13 @@ public sealed class PrintBillsViewModel : ObservableObject
             options.PrinterImageableOriginXDip.ToString("F2"),
             options.PrinterImageableOriginYDip.ToString("F2"),
             options.PrinterImageableWidthDip.ToString("F2"),
-            options.PrinterImageableHeightDip.ToString("F2")
+            options.PrinterImageableHeightDip.ToString("F2"),
+            options.LayoutSettings.PrintableWidthMm.ToString("F2"),
+            options.LayoutSettings.PrintableHeightMm.ToString("F2"),
+            options.LayoutSettings.MarginLeftMm.ToString("F2"),
+            options.LayoutSettings.MarginRightMm.ToString("F2"),
+            options.LayoutSettings.MarginTopMm.ToString("F2"),
+            options.LayoutSettings.MarginBottomMm.ToString("F2")
         });
     }
 
