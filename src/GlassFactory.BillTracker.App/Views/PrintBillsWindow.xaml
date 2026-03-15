@@ -62,11 +62,11 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <CheckBox Grid.Column="0" Content="Fit to page (scale)" IsChecked="{Binding FitToPageScale, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1" Text="Scale %" VerticalAlignment="Center" Margin="12,0,6,0" />
-            <ComboBox Grid.Column="2" Width="90" ItemsSource="{Binding ScalePercentOptions}" SelectedItem="{Binding ManualScalePercent, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualScaleEnabled}" />
-            <TextBlock Grid.Column="4" Text="{Binding CurrentScaleDisplay}" Foreground="Gray" VerticalAlignment="Center" Margin="12,0,0,0" />
-        </Grid>
+            <CheckBox Grid.Column="0" Content="适合页面大小" IsChecked="{Binding FitToPageScale, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="缩放 %" verticalalignment="center" margin="12,0,6,0" />
+            <combobox grid.column="2" width="90" itemssource="{binding scalepercentoptions}" selecteditem="{binding manualscalepercent, updatesourcetrigger=propertychanged}" isenabled="{binding ismanualscaleenabled}" />
+            <textblock grid.column="4" text="{binding currentscaledisplay}" foreground="gray" verticalalignment="center" margin="12,0,0,0" />
+        </grid>
 
         <Grid Grid.Row="3" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>

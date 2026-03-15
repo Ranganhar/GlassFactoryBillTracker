@@ -25,7 +25,7 @@ public sealed class PrintBillsViewModel : ObservableObject
     private int _fontSize = 12;
     private bool _fitToPageScale = true;
     private int _manualScalePercent = 100;
-    private string _currentScaleDisplay = "Current scale: 100% (no printer selected)";
+    private string _currentScaleDisplay = "缩放比例: 100% (默认打印机)";
     private FixedDocument _previewDocument = new();
 
     private string? _printerName;
@@ -311,16 +311,16 @@ public sealed class PrintBillsViewModel : ObservableObject
         var percent = (int)Math.Round(result.Scale * 100d, MidpointRounding.AwayFromZero);
         if (!FitToPageScale)
         {
-            CurrentScaleDisplay = $"Current scale: {percent}% (manual)";
+            CurrentScaleDisplay = $"缩放比例: {percent}% (手动)";
             return;
         }
 
         if (result.IsFromPrinter)
         {
-            CurrentScaleDisplay = $"Current scale: {percent}% (based on printer)";
+            CurrentScaleDisplay = $"缩放比例: {percent}% (基于打印机)";
             return;
         }
 
-        CurrentScaleDisplay = "Current scale: 100% (no printer selected)";
+        CurrentScaleDisplay = "缩放比例: 100% (默认打印机)";
     }
 }

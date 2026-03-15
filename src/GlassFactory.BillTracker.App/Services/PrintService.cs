@@ -494,13 +494,9 @@ public sealed class PrintService : IPrintService
         if (!string.IsNullOrWhiteSpace(totalText))
         {
             table.RowDefinitions.Add(new RowDefinition { Height = new GridLength(footerHeight) });
-            var totalCell = CreateCell(
+            var totalCell = CreateTotalFooterCell(
                 totalText,
-                bold: true,
                 fontSize: tableFontSize,
-                alignment: TextAlignment.Right,
-                wrap: false,
-                trim: false,
                 cellWidth: columnWidths.Sum(),
                 debugContext: "DotMatrix",
                 rowIndex: rowIndex,
@@ -656,13 +652,9 @@ public sealed class PrintService : IPrintService
         }
 
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var totalCell = CreateCell(
+        var totalCell = CreateTotalFooterCell(
             $"合计：{FormatMoney2(order.TotalAmount)}",
-            bold: true,
             fontSize: tableFontSize,
-            alignment: TextAlignment.Right,
-            wrap: false,
-            trim: false,
             cellWidth: columnWidths.Sum(),
             debugContext: isDotMatrix ? "A4-DotMatrix" : "A4",
             rowIndex: rowIndex,
@@ -739,6 +731,62 @@ public sealed class PrintService : IPrintService
                 TextTrimming = textTrimming,
                 Margin = margin,
                 MaxWidth = textMaxWidth
+            }
+        };
+    }
+
+    private static Border CreateTotalFooterCell(
+        string totalText,
+        double fontSize,
+        double cellWidth,
+        string debugContext,
+        int rowIndex,
+        int columnIndex,
+        string columnKey,
+        double cellLeft)
+    {
+        var boldTypeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+        var textMaxWidth = Math.Max(8d, cellWidth - CellHorizontalInsetsDip);
+        var measuredWidth = Math.Min(textMaxWidth, MeasureTextWidth(totalText, boldTypeface, Math.Max(8d, fontSize), MeasurementPixelsPerDip));
+
+        TraceRenderCell(
+            debugContext,
+            rowIndex,
+            columnIndex,
+            columnKey,
+            cellLeft,
+            cellWidth,
+            textMaxWidth,
+            TextTrimming.None,
+            new Thickness(0d),
+            clippingEnabled: false);
+
+        return new Border
+        {
+            BorderBrush = Brushes.Black,
+            BorderThickness = new Thickness(BorderStrokeDip),
+            Padding = new Thickness(CellPaddingLeftDip, CellPaddingTopDip, CellPaddingRightDip, CellPaddingBottomDip),
+            SnapsToDevicePixels = true,
+            Child = new Grid
+            {
+                Width = textMaxWidth,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = totalText,
+                        FontFamily = PrintFontFamily,
+                        FontWeight = FontWeights.Bold,
+                        FontSize = Math.Max(8d, fontSize),
+                        Width = measuredWidth,
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextAlignment = TextAlignment.Right,
+                        TextWrapping = TextWrapping.NoWrap,
+                        TextTrimming = TextTrimming.None
+                    }
+                }
             }
         };
     }
