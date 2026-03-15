@@ -16,7 +16,7 @@ public sealed class PrintService : IPrintService
     private static readonly FontFamily PrintFontFamily = new("Microsoft YaHei");
     private static readonly double MeasurementPixelsPerDip = GetPixelsPerDip();
 
-    private const double DotMatrixPageWidthMm = 216d;
+    private const double DotMatrixPageWidthMm = 210d;
     private const double DotMatrixPageHeightMm = 93d;
     private const double DotMatrixMarginMm = 5d;
     private const double DotMatrixTableHeaderMm = 7d;

@@ -15,7 +15,7 @@ public static class PrintScaleCalculator
 {
     public const double MinScale = 0.5d;
     public const double MaxScale = 1.5d;
-    public static readonly double LogicalContentWidthDip = MmToDip(216d);
+    public static readonly double LogicalContentWidthDip = MmToDip(210d);
     public static readonly double LogicalContentHeightDip = MmToDip(93d);
 
     public static PrintScaleResult Compute(PrintBillOptions options)
