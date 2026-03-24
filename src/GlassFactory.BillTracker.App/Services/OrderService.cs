@@ -131,11 +131,30 @@ public sealed class OrderService : IOrderService
     public async Task<Order?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         await using var db = AppRuntimeContext.CreateDbContext();
-        return await db.Orders
+        var order = await db.Orders
             .AsNoTracking()
             .Include(x => x.Customer)
             .Include(x => x.Items)
+            .Include(x => x.Attachments)
             .FirstOrDefaultAsync(x => x.Id == orderId, cancellationToken);
+
+        if (order?.Items is { Count: > 0 })
+        {
+            order.Items = order.Items
+                .OrderBy(x => x.SortIndex)
+                .ThenBy(x => x.Id)
+                .ToList();
+        }
+
+        if (order?.Attachments is { Count: > 0 })
+        {
+            order.Attachments = order.Attachments
+                .OrderBy(x => x.CreatedAt)
+                .ThenBy(x => x.Id)
+                .ToList();
+        }
+
+        return order;
     }
 
     public async Task<List<OrderExportDto>> QueryOrdersForExportAsync(OrderQueryFilter filter, CancellationToken cancellationToken = default)
@@ -196,7 +215,10 @@ public sealed class OrderService : IOrderService
             OrderStatus = order.OrderStatus,
             TotalAmount = order.TotalAmount,
             Note = order.Note,
-            Items = (order.Items ?? Array.Empty<OrderItem>()).Select(item => new OrderExportItemDto
+            Items = (order.Items ?? Array.Empty<OrderItem>())
+                .OrderBy(item => item.SortIndex)
+                .ThenBy(item => item.Id)
+                .Select(item => new OrderExportItemDto
             {
                 Model = item.Model,
                 GlassLengthMm = item.GlassLengthMm,
@@ -334,8 +356,8 @@ public sealed class OrderService : IOrderService
     public async Task<Order> SaveAsync(
         OrderEditModel orderModel,
         IReadOnlyList<OrderItem> items,
-        string? newAttachmentSourcePath,
-        bool removeAttachment,
+        IReadOnlyList<string>? newAttachmentSourcePaths,
+        IReadOnlyList<Guid>? attachmentIdsToRemove,
         CancellationToken cancellationToken = default)
     {
         if (orderModel.CustomerId is null || orderModel.CustomerId == Guid.Empty)
@@ -388,8 +410,9 @@ public sealed class OrderService : IOrderService
                 Note = orderModel.Note
             };
 
-            foreach (var item in items)
+            for (var i = 0; i < items.Count; i++)
             {
+                var item = items[i];
                 var newItem = new OrderItem
                 {
                     Id = Guid.NewGuid(),
@@ -403,6 +426,7 @@ public sealed class OrderService : IOrderService
                     WireUnitPrice = item.WireUnitPrice,
                     HoleFee = item.HoleFee,
                     OtherFee = item.OtherFee,
+                    SortIndex = i,
                     Note = item.Note
                 };
 
@@ -432,11 +456,12 @@ public sealed class OrderService : IOrderService
             var originalExistingIds = existingItemById.Keys.ToHashSet();
             var retainedExistingIds = new HashSet<Guid>();
 
-            foreach (var item in items)
+            for (var i = 0; i < items.Count; i++)
             {
+                var item = items[i];
                 if (item.Id != Guid.Empty && existingItemById.TryGetValue(item.Id, out var trackedItem))
                 {
-                    ApplyIncomingItemIfChanged(trackedItem, item);
+                    ApplyIncomingItemIfChanged(trackedItem, item, i);
                     retainedExistingIds.Add(trackedItem.Id);
                     continue;
                 }
@@ -454,6 +479,7 @@ public sealed class OrderService : IOrderService
                     WireUnitPrice = item.WireUnitPrice,
                     HoleFee = item.HoleFee,
                     OtherFee = item.OtherFee,
+                    SortIndex = i,
                     Note = item.Note
                 };
 
@@ -489,30 +515,29 @@ public sealed class OrderService : IOrderService
             throw new InvalidOperationException("订单已被修改或删除，请刷新后重试。", ex);
         }
 
-        if (removeAttachment)
+        var normalizedRemoveIds = (attachmentIdsToRemove ?? Array.Empty<Guid>())
+            .Where(x => x != Guid.Empty)
+            .Distinct()
+            .ToList();
+        if (normalizedRemoveIds.Count > 0)
         {
-            var current = await _attachmentService.ListAttachmentsAsync(entity.Id, cancellationToken);
-            foreach (var attachment in current)
+            foreach (var attachmentId in normalizedRemoveIds)
             {
-                await _attachmentService.RemoveAttachmentAsync(attachment.Id, cancellationToken);
+                await _attachmentService.RemoveAttachmentAsync(attachmentId, cancellationToken);
             }
-
-            await using var cleanDb = AppRuntimeContext.CreateDbContext();
-            var cleanOrder = await cleanDb.Orders.FirstAsync(x => x.Id == entity.Id, cancellationToken);
-            cleanOrder.AttachmentPath = null;
-            cleanOrder.UpdatedAt = DateTime.Now;
-            await cleanDb.SaveChangesAsync(cancellationToken);
         }
 
-        if (!string.IsNullOrWhiteSpace(newAttachmentSourcePath))
+        var normalizedNewPaths = (newAttachmentSourcePaths ?? Array.Empty<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (normalizedNewPaths.Count > 0)
         {
-            var existing = await _attachmentService.ListAttachmentsAsync(entity.Id, cancellationToken);
-            foreach (var attachment in existing)
+            foreach (var path in normalizedNewPaths)
             {
-                await _attachmentService.RemoveAttachmentAsync(attachment.Id, cancellationToken);
+                await _attachmentService.AddAttachmentAsync(entity.Id, path, cancellationToken);
             }
-
-            await _attachmentService.AddAttachmentAsync(entity.Id, newAttachmentSourcePath, cancellationToken);
         }
 
         return await GetByIdAsync(entity.Id, cancellationToken) ?? entity;
@@ -559,7 +584,7 @@ public sealed class OrderService : IOrderService
 
     }
 
-    private static void ApplyIncomingItemIfChanged(OrderItem trackedItem, OrderItem incomingItem)
+    private static void ApplyIncomingItemIfChanged(OrderItem trackedItem, OrderItem incomingItem, int sortIndex)
     {
         var recalculatedAmount = OrderAmountCalculator.CalculateAmount(incomingItem);
         var changed =
@@ -572,6 +597,7 @@ public sealed class OrderService : IOrderService
             trackedItem.WireUnitPrice != incomingItem.WireUnitPrice ||
             trackedItem.HoleFee != incomingItem.HoleFee ||
             trackedItem.OtherFee != incomingItem.OtherFee ||
+            trackedItem.SortIndex != sortIndex ||
             !string.Equals(trackedItem.Note ?? string.Empty, incomingItem.Note ?? string.Empty, StringComparison.Ordinal) ||
             trackedItem.Amount != recalculatedAmount;
 
@@ -589,6 +615,7 @@ public sealed class OrderService : IOrderService
         trackedItem.WireUnitPrice = incomingItem.WireUnitPrice;
         trackedItem.HoleFee = incomingItem.HoleFee;
         trackedItem.OtherFee = incomingItem.OtherFee;
+        trackedItem.SortIndex = sortIndex;
         trackedItem.Note = incomingItem.Note;
         trackedItem.Amount = recalculatedAmount;
     }

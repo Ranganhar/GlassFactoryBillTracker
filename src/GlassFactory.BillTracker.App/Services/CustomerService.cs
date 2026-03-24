@@ -9,14 +9,8 @@ public sealed class CustomerService : ICustomerService
     public async Task<List<Customer>> GetCustomersAsync(string? keyword = null, CancellationToken cancellationToken = default)
     {
         await using var db = AppRuntimeContext.CreateDbContext();
-        var query = db.Customers.AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(keyword))
-        {
-            query = query.Where(x => x.Name.Contains(keyword));
-        }
-
-        return await query.OrderBy(x => x.Name).ToListAsync(cancellationToken);
+        var customers = await db.Customers.AsNoTracking().ToListAsync(cancellationToken);
+        return CustomerOrdering.FilterAndSortCustomers(customers, keyword);
     }
 
     public async Task<Customer?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

@@ -62,7 +62,8 @@ public sealed class AttachmentService : IAttachmentService
         return await db.OrderAttachments
             .AsNoTracking()
             .Where(x => x.OrderId == orderId)
-            .OrderByDescending(x => x.CreatedAt)
+            .OrderBy(x => x.CreatedAt)
+            .ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
     }
 

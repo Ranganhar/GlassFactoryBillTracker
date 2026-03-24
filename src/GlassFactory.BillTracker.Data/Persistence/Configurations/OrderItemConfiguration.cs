@@ -22,7 +22,10 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(x => x.WireUnitPrice).HasPrecision(18, 4);
         builder.Property(x => x.HoleFee).HasPrecision(18, 4);
         builder.Property(x => x.OtherFee).HasPrecision(18, 4);
+        builder.Property(x => x.SortIndex).IsRequired().HasDefaultValue(0);
         builder.Property(x => x.Amount).HasPrecision(18, 4);
         builder.Property(x => x.Note).HasMaxLength(2000);
+
+        builder.HasIndex(x => new { x.OrderId, x.SortIndex });
     }
 }

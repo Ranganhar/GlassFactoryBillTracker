@@ -780,17 +780,17 @@ public sealed class MainWindowViewModel : ObservableObject
 
             var isSaving = false;
 
-            vm.SelectAttachmentRequested += () =>
+            vm.SelectAttachmentsRequested += () =>
             {
                 var dialog = new Microsoft.Win32.OpenFileDialog
                 {
                     Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*",
-                    Multiselect = false
+                    Multiselect = true
                 };
 
                 if (dialog.ShowDialog() == true)
                 {
-                    vm.SetSelectedAttachment(dialog.FileName);
+                    vm.AddSelectedAttachments(dialog.FileNames);
                 }
             };
 
@@ -806,8 +806,12 @@ public sealed class MainWindowViewModel : ObservableObject
                     isSaving = true;
                     vm.SetSaving(true);
                     var model = vm.BuildModel();
-                    var saved = await _orderService.SaveAsync(model, vm.BuildItems(), vm.AttachmentSourcePath, vm.RemoveAttachment);
-                    vm.AttachmentRelativePath = saved.AttachmentPath;
+                    var saved = await _orderService.SaveAsync(
+                        model,
+                        vm.BuildItems(),
+                        vm.BuildNewAttachmentSourcePaths(),
+                        vm.BuildRemovedAttachmentIds());
+                    vm.LoadPersistedAttachments(saved.Attachments);
                     vm.AcceptChanges();
                     window.DialogResult = true;
                     window.Close();

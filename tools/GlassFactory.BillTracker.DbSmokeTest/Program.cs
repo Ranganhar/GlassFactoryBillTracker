@@ -52,6 +52,7 @@ var order = new Order
             WireUnitPrice = 16m,
             HoleFee = 16m,
             OtherFee = 3m,
+            SortIndex = 0,
             Note = "明细1"
         },
         new()
@@ -65,6 +66,7 @@ var order = new Order
             WireUnitPrice = 12m,
             HoleFee = 12m,
             OtherFee = 1m,
+            SortIndex = 1,
             Note = "明细2"
         }
     }
@@ -96,8 +98,10 @@ await using (var editDb = new BillTrackerDbContext(options))
             WireUnitPrice = x.WireUnitPrice,
             HoleFee = x.HoleFee,
             OtherFee = x.OtherFee,
+            SortIndex = x.SortIndex,
             Note = x.Note
         })
+        .OrderBy(x => x.SortIndex)
         .ToList();
 
     var source = incoming.First();
@@ -113,6 +117,7 @@ await using (var editDb = new BillTrackerDbContext(options))
         WireUnitPrice = source.WireUnitPrice,
         HoleFee = source.HoleFee,
         OtherFee = source.OtherFee,
+        SortIndex = incoming.Count,
         Note = source.Note
     });
 
@@ -135,6 +140,7 @@ await using (var editDb = new BillTrackerDbContext(options))
                 tracked.WireUnitPrice != item.WireUnitPrice ||
                 tracked.HoleFee != item.HoleFee ||
                 tracked.OtherFee != item.OtherFee ||
+                tracked.SortIndex != item.SortIndex ||
                 !string.Equals(tracked.Note ?? string.Empty, item.Note ?? string.Empty, StringComparison.Ordinal) ||
                 tracked.Amount != recalculatedAmount;
 
@@ -149,6 +155,7 @@ await using (var editDb = new BillTrackerDbContext(options))
                 tracked.WireUnitPrice = item.WireUnitPrice;
                 tracked.HoleFee = item.HoleFee;
                 tracked.OtherFee = item.OtherFee;
+                tracked.SortIndex = item.SortIndex;
                 tracked.Note = item.Note;
                 tracked.Amount = recalculatedAmount;
             }
@@ -170,6 +177,7 @@ await using (var editDb = new BillTrackerDbContext(options))
             WireUnitPrice = item.WireUnitPrice,
             HoleFee = item.HoleFee,
             OtherFee = item.OtherFee,
+            SortIndex = item.SortIndex,
             Note = item.Note
         };
 
@@ -197,10 +205,12 @@ var savedOrder = await db.Orders
     .FirstAsync(x => x.Id == order.Id);
 
 var expected = OrderAmountCalculator.CalculateOrderTotal(savedOrder.Items);
+var orderedBySortIndex = savedOrder.Items.OrderBy(x => x.SortIndex).ToList();
 
 Console.WriteLine($"DB_PATH={dbPath}");
 Console.WriteLine($"ORDER_NO={savedOrder.OrderNo}");
 Console.WriteLine($"ITEM_COUNT={savedOrder.Items.Count}");
+Console.WriteLine($"FIRST_ITEM_SORT_INDEX={orderedBySortIndex.FirstOrDefault()?.SortIndex ?? -1}");
 Console.WriteLine($"EXPECTED_TOTAL={expected:F0}");
 Console.WriteLine($"DB_TOTAL={savedOrder.TotalAmount:F0}");
 
@@ -212,6 +222,14 @@ if (savedOrder.Items.Count != 3)
 if (savedOrder.TotalAmount != expected)
 {
     throw new InvalidOperationException($"TotalAmount mismatch, expected {expected:F0}, got {savedOrder.TotalAmount:F0}");
+}
+
+for (var i = 0; i < orderedBySortIndex.Count; i++)
+{
+    if (orderedBySortIndex[i].SortIndex != i)
+    {
+        throw new InvalidOperationException($"SortIndex sequence invalid at row {i}, got {orderedBySortIndex[i].SortIndex}");
+    }
 }
 
 Console.WriteLine("SMOKE_TEST_PASS");

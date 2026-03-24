@@ -17,6 +17,7 @@ public class OrderItem
     public decimal WireUnitPrice { get; set; }
     public decimal HoleFee { get; set; }
     public decimal OtherFee { get; set; }
+    public int SortIndex { get; set; }
 
     public decimal Amount { get; set; }
     public string? Note { get; set; }

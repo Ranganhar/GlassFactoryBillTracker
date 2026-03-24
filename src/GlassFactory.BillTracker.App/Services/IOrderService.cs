@@ -10,6 +10,11 @@ public interface IOrderService
     Task<DeleteSelectedResult> DeleteOrdersAsync(IEnumerable<Guid> orderIds, CancellationToken cancellationToken = default);
     Task<Order?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default);
     Task<string> GenerateOrderNoAsync(DateTime dateTime, CancellationToken cancellationToken = default);
-    Task<Order> SaveAsync(OrderEditModel orderModel, IReadOnlyList<OrderItem> items, string? newAttachmentSourcePath, bool removeAttachment, CancellationToken cancellationToken = default);
+    Task<Order> SaveAsync(
+        OrderEditModel orderModel,
+        IReadOnlyList<OrderItem> items,
+        IReadOnlyList<string>? newAttachmentSourcePaths,
+        IReadOnlyList<Guid>? attachmentIdsToRemove,
+        CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid orderId, CancellationToken cancellationToken = default);
 }

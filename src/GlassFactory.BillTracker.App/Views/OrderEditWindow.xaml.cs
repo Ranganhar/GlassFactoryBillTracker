@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using GlassFactory.BillTracker.App.ViewModels;
+using GlassFactory.BillTracker.App.ViewModels.Rows;
 
 namespace GlassFactory.BillTracker.App.Views;
 
@@ -86,6 +87,20 @@ public partial class OrderEditWindow : Window
                 ItemsDataGrid.BeginEdit();
             }
         }
+    }
+
+    private void AttachmentListBox_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (AttachmentListBox.SelectedItem is not OrderAttachmentRowViewModel attachment || string.IsNullOrWhiteSpace(attachment.AbsolutePath))
+        {
+            return;
+        }
+
+        var viewer = new ImageViewWindow(attachment.AbsolutePath)
+        {
+            Owner = this
+        };
+        viewer.ShowDialog();
     }
 
 }

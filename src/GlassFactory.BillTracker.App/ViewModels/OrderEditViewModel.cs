@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows;
 using GlassFactory.BillTracker.App.Commands;
 using GlassFactory.BillTracker.App.Models;
+using GlassFactory.BillTracker.App.Services;
 using GlassFactory.BillTracker.App.ViewModels.Base;
 using GlassFactory.BillTracker.App.ViewModels.Rows;
 using GlassFactory.BillTracker.Domain.Entities;
@@ -15,8 +16,8 @@ namespace GlassFactory.BillTracker.App.ViewModels;
 
 public sealed class OrderEditViewModel : ObservableObject
 {
-    private readonly IReadOnlyList<Customer> _customers;
-    private readonly bool _isEditMode;
+    private readonly List<Customer> _customers;
+    private readonly HashSet<Guid> _removedAttachmentIds = new();
 
     private Guid _id;
     private string _orderNo = string.Empty;
@@ -24,13 +25,12 @@ public sealed class OrderEditViewModel : ObservableObject
     private int _selectedHour = DateTime.Now.Hour;
     private int _selectedMinute = DateTime.Now.Minute;
     private Customer? _selectedCustomer;
+    private string? _customerPickerKeyword;
     private PaymentMethod _selectedPaymentMethod = PaymentMethod.现金;
     private OrderStatus _selectedOrderStatus = OrderStatus.未收款;
     private string? _note;
     private decimal _totalAmount;
-    private string? _attachmentSourcePath;
-    private string? _attachmentRelativePath;
-    private bool _removeAttachment;
+    private OrderAttachmentRowViewModel? _selectedAttachment;
     private bool _isSaving;
     private bool _isDirty;
     private bool _suppressDirtyTracking = true;
@@ -43,13 +43,12 @@ public sealed class OrderEditViewModel : ObservableObject
         nameof(SelectedCustomer),
         nameof(SelectedPaymentMethod),
         nameof(SelectedOrderStatus),
-        nameof(Note),
-        nameof(AttachmentSourcePath),
-        nameof(AttachmentRelativePath),
-        nameof(RemoveAttachment)
+        nameof(Note)
     };
 
     public ObservableCollection<OrderItemRowViewModel> Items { get; } = new();
+    public ObservableCollection<OrderAttachmentRowViewModel> Attachments { get; } = new();
+    public ObservableCollection<Customer> FilteredCustomers { get; } = new();
 
     public IReadOnlyList<Customer> Customers => _customers;
     public IReadOnlyList<int> Hours { get; } = Enumerable.Range(0, 24).ToList();
@@ -93,6 +92,18 @@ public sealed class OrderEditViewModel : ObservableObject
         set => SetProperty(ref _selectedCustomer, value);
     }
 
+    public string? CustomerPickerKeyword
+    {
+        get => _customerPickerKeyword;
+        set
+        {
+            if (SetProperty(ref _customerPickerKeyword, value))
+            {
+                ApplyCustomerFilter();
+            }
+        }
+    }
+
     public PaymentMethod SelectedPaymentMethod
     {
         get => _selectedPaymentMethod;
@@ -117,59 +128,10 @@ public sealed class OrderEditViewModel : ObservableObject
         private set => SetProperty(ref _totalAmount, value);
     }
 
-    public string? AttachmentSourcePath
+    public OrderAttachmentRowViewModel? SelectedAttachment
     {
-        get => _attachmentSourcePath;
-        set => SetProperty(ref _attachmentSourcePath, value);
-    }
-
-    public string? AttachmentRelativePath
-    {
-        get => _attachmentRelativePath;
-        set => SetProperty(ref _attachmentRelativePath, value);
-    }
-
-    public bool RemoveAttachment
-    {
-        get => _removeAttachment;
-        set => SetProperty(ref _removeAttachment, value);
-    }
-
-    public string? AttachmentDisplayName
-    {
-        get
-        {
-            if (!string.IsNullOrWhiteSpace(AttachmentSourcePath))
-            {
-                return Path.GetFileName(AttachmentSourcePath);
-            }
-
-            if (!string.IsNullOrWhiteSpace(AttachmentRelativePath))
-            {
-                return Path.GetFileName(AttachmentRelativePath);
-            }
-
-            return null;
-        }
-    }
-
-    public string? AttachmentPreviewAbsolutePath
-    {
-        get
-        {
-            if (!string.IsNullOrWhiteSpace(AttachmentSourcePath) && File.Exists(AttachmentSourcePath))
-            {
-                return AttachmentSourcePath;
-            }
-
-            if (string.IsNullOrWhiteSpace(AttachmentRelativePath))
-            {
-                return null;
-            }
-
-            var absolute = Path.Combine(Services.AppRuntimeContext.DataDir, AttachmentRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            return File.Exists(absolute) ? absolute : null;
-        }
+        get => _selectedAttachment;
+        set => SetProperty(ref _selectedAttachment, value);
     }
 
     public RelayCommand AddItemCommand { get; }
@@ -208,16 +170,16 @@ public sealed class OrderEditViewModel : ObservableObject
 
     public event Action? Saved;
     public event Action? Canceled;
-    public event Action? SelectAttachmentRequested;
+    public event Action? SelectAttachmentsRequested;
     public event Action<string, int?>? ValidationFailed;
 
     public OrderEditViewModel(IReadOnlyList<Customer> customers, string orderNo, Order? existing = null)
     {
-        _customers = customers;
-        _isEditMode = existing is not null;
+        _customers = CustomerOrdering.SortCustomers(customers);
 
         PropertyChanged += OnSelfPropertyChanged;
         Items.CollectionChanged += OnItemsCollectionChanged;
+        Attachments.CollectionChanged += OnAttachmentsCollectionChanged;
 
         Id = existing?.Id ?? Guid.Empty;
         OrderNo = existing?.OrderNo ?? orderNo;
@@ -227,11 +189,10 @@ public sealed class OrderEditViewModel : ObservableObject
         SelectedHour = dateTime.Hour;
         SelectedMinute = dateTime.Minute;
 
-        SelectedCustomer = customers.FirstOrDefault(x => x.Id == existing?.CustomerId);
+        SelectedCustomer = _customers.FirstOrDefault(x => x.Id == existing?.CustomerId);
         SelectedPaymentMethod = existing?.PaymentMethod ?? PaymentMethod.现金;
         SelectedOrderStatus = existing?.OrderStatus ?? OrderStatus.未收款;
         Note = existing?.Note;
-        AttachmentRelativePath = existing?.AttachmentPath;
 
         if (existing?.Items is not null)
         {
@@ -241,10 +202,25 @@ public sealed class OrderEditViewModel : ObservableObject
             }
         }
 
+        if (existing?.Attachments is not null)
+        {
+            foreach (var attachment in existing.Attachments.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id))
+            {
+                Attachments.Add(new OrderAttachmentRowViewModel
+                {
+                    AttachmentId = attachment.Id,
+                    RelativePath = attachment.RelativePath,
+                    CreatedAt = attachment.CreatedAt
+                });
+            }
+        }
+
         if (Items.Count == 0)
         {
             Items.Add(new OrderItemRowViewModel(RecalculateTotal));
         }
+
+        SelectedAttachment = Attachments.FirstOrDefault();
 
         AddItemCommand = new RelayCommand(AddItem);
         RemoveSelectedItemCommand = new RelayCommand(RemoveSelectedItem);
@@ -252,20 +228,88 @@ public sealed class OrderEditViewModel : ObservableObject
         CopySelectedItemCommand = new RelayCommand<OrderItemRowViewModel>(CopySelectedItem);
         SaveCommand = new RelayCommand(OnSave, () => !IsSaving);
         CancelCommand = new RelayCommand(() => Canceled?.Invoke());
-        ChooseAttachmentCommand = new RelayCommand(() => SelectAttachmentRequested?.Invoke());
+        ChooseAttachmentCommand = new RelayCommand(() => SelectAttachmentsRequested?.Invoke());
         RemoveAttachmentCommand = new RelayCommand(RemoveAttachmentAction);
+
+        ApplyCustomerFilter();
 
         RecalculateTotal();
         _suppressDirtyTracking = false;
         AcceptChanges();
     }
 
-    public void SetSelectedAttachment(string filePath)
+    private void ApplyCustomerFilter()
     {
-        AttachmentSourcePath = filePath;
-        RemoveAttachment = false;
-        OnPropertyChanged(nameof(AttachmentDisplayName));
-        OnPropertyChanged(nameof(AttachmentPreviewAbsolutePath));
+        var filtered = CustomerOrdering.FilterAndSortCustomers(_customers, CustomerPickerKeyword);
+
+        FilteredCustomers.Clear();
+        foreach (var customer in filtered)
+        {
+            FilteredCustomers.Add(customer);
+        }
+    }
+
+    public void AddSelectedAttachments(IEnumerable<string> filePaths)
+    {
+        if (filePaths is null)
+        {
+            return;
+        }
+
+        var incoming = filePaths
+            .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (incoming.Count == 0)
+        {
+            return;
+        }
+
+        var existingPaths = Attachments
+            .Select(x => x.SourcePath)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var filePath in incoming)
+        {
+            if (existingPaths.Contains(filePath))
+            {
+                continue;
+            }
+
+            Attachments.Add(new OrderAttachmentRowViewModel
+            {
+                SourcePath = filePath,
+                CreatedAt = DateTime.Now
+            });
+        }
+
+        SelectedAttachment = Attachments.LastOrDefault();
+    }
+
+    public void LoadPersistedAttachments(IEnumerable<OrderAttachment>? attachments)
+    {
+        _removedAttachmentIds.Clear();
+        Attachments.Clear();
+
+        if (attachments is null)
+        {
+            SelectedAttachment = null;
+            return;
+        }
+
+        foreach (var attachment in attachments.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id))
+        {
+            Attachments.Add(new OrderAttachmentRowViewModel
+            {
+                AttachmentId = attachment.Id,
+                RelativePath = attachment.RelativePath,
+                CreatedAt = attachment.CreatedAt
+            });
+        }
+
+        SelectedAttachment = Attachments.FirstOrDefault();
     }
 
     public void AcceptChanges()
@@ -283,14 +327,27 @@ public sealed class OrderEditViewModel : ObservableObject
             CustomerId = SelectedCustomer?.Id,
             PaymentMethod = SelectedPaymentMethod,
             OrderStatus = SelectedOrderStatus,
-            Note = string.IsNullOrWhiteSpace(Note) ? null : Note?.Trim(),
-            AttachmentPath = AttachmentRelativePath
+            Note = string.IsNullOrWhiteSpace(Note) ? null : Note?.Trim()
         };
     }
 
     public IReadOnlyList<OrderItem> BuildItems()
     {
         return Items.Select(x => x.ToEntity()).ToList();
+    }
+
+    public IReadOnlyList<string> BuildNewAttachmentSourcePaths()
+    {
+        return Attachments
+            .Where(x => !x.IsPersisted && !string.IsNullOrWhiteSpace(x.SourcePath))
+            .Select(x => x.SourcePath!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public IReadOnlyList<Guid> BuildRemovedAttachmentIds()
+    {
+        return _removedAttachmentIds.ToList();
     }
 
     public void SetSaving(bool isSaving)
@@ -370,15 +427,20 @@ public sealed class OrderEditViewModel : ObservableObject
 
     private void RemoveAttachmentAction()
     {
-        AttachmentSourcePath = null;
-        if (_isEditMode && !string.IsNullOrWhiteSpace(AttachmentRelativePath))
+        if (SelectedAttachment is null)
         {
-            RemoveAttachment = true;
+            MessageBox.Show("请先选择要移除的图片。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
 
-        AttachmentRelativePath = null;
-        OnPropertyChanged(nameof(AttachmentDisplayName));
-        OnPropertyChanged(nameof(AttachmentPreviewAbsolutePath));
+        var current = SelectedAttachment;
+        if (current.IsPersisted && current.AttachmentId.HasValue)
+        {
+            _removedAttachmentIds.Add(current.AttachmentId.Value);
+        }
+
+        Attachments.Remove(current);
+        SelectedAttachment = Attachments.FirstOrDefault();
     }
 
     private void RecalculateTotal()
@@ -491,6 +553,14 @@ public sealed class OrderEditViewModel : ObservableObject
             }
         }
 
+        if (!_suppressDirtyTracking)
+        {
+            MarkDirty();
+        }
+    }
+
+    private void OnAttachmentsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
         if (!_suppressDirtyTracking)
         {
             MarkDirty();

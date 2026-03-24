@@ -174,6 +174,11 @@ namespace GlassFactory.BillTracker.Data.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("SortIndex")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("Quantity")
                         .HasColumnType("INTEGER");
 
@@ -189,6 +194,8 @@ namespace GlassFactory.BillTracker.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId");
+
+                    b.HasIndex("OrderId", "SortIndex");
 
                     b.ToTable("OrderItems", (string)null);
                 });
