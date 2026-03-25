@@ -10,6 +10,7 @@ public sealed class CustomerService : ICustomerService
     {
         await using var db = AppRuntimeContext.CreateDbContext();
         var customers = await db.Customers.AsNoTracking().ToListAsync(cancellationToken);
+        CustomerOrdering.UpsertSearchKeys(customers);
         return CustomerOrdering.FilterAndSortCustomers(customers, keyword);
     }
 
@@ -62,6 +63,7 @@ public sealed class CustomerService : ICustomerService
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                CustomerOrdering.UpsertSearchKeys(new[] { newCustomer });
                 return newCustomer;
             }
             catch (DbUpdateException ex)
@@ -80,6 +82,7 @@ public sealed class CustomerService : ICustomerService
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            CustomerOrdering.UpsertSearchKeys(new[] { existing });
             return existing;
         }
         catch (DbUpdateException ex)
@@ -100,6 +103,7 @@ public sealed class CustomerService : ICustomerService
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            CustomerOrdering.RemoveSearchKey(id);
         }
         catch (DbUpdateException)
         {

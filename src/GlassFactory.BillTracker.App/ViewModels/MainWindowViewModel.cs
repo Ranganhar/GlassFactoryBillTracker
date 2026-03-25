@@ -26,6 +26,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private bool _suppressAutoApply;
     private CancellationTokenSource? _debounceCts;
+    private CancellationTokenSource? _customerSearchDebounceCts;
     private CancellationTokenSource? _queryCts;
     private string? _lastFilterSignature;
 
@@ -187,7 +188,13 @@ public sealed class MainWindowViewModel : ObservableObject
     public string? CustomerSearchKeyword
     {
         get => _customerSearchKeyword;
-        set => SetProperty(ref _customerSearchKeyword, value);
+        set
+        {
+            if (SetProperty(ref _customerSearchKeyword, value))
+            {
+                DebounceLoadCustomers();
+            }
+        }
     }
 
     public int ResultCount
@@ -321,6 +328,33 @@ public sealed class MainWindowViewModel : ObservableObject
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     _ = ApplyFiltersAsync(force: false, showValidationError: false);
+                });
+            }
+            catch (TaskCanceledException)
+            {
+            }
+        }, token);
+    }
+
+    public void DebounceLoadCustomers()
+    {
+        _customerSearchDebounceCts?.Cancel();
+        _customerSearchDebounceCts = new CancellationTokenSource();
+        var token = _customerSearchDebounceCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(220, token);
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                await Application.Current.Dispatcher.InvokeAsync(async () =>
+                {
+                    await LoadCustomersAsync();
                 });
             }
             catch (TaskCanceledException)

@@ -240,7 +240,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
     private void ApplyCustomerFilter()
     {
-        var filtered = CustomerOrdering.FilterAndSortCustomers(_customers, CustomerPickerKeyword);
+        var filtered = CustomerOrdering.FilterCustomersInOrder(_customers, CustomerPickerKeyword);
 
         FilteredCustomers.Clear();
         foreach (var customer in filtered)
