@@ -30,6 +30,8 @@ public sealed class OrderEditViewModel : ObservableObject
     private OrderStatus _selectedOrderStatus = OrderStatus.未收款;
     private string? _note;
     private decimal _totalAmount;
+    private int _totalQuantity;
+    private decimal _totalAreaM2;
     private OrderAttachmentRowViewModel? _selectedAttachment;
     private bool _isSaving;
     private bool _isDirty;
@@ -126,6 +128,18 @@ public sealed class OrderEditViewModel : ObservableObject
     {
         get => _totalAmount;
         private set => SetProperty(ref _totalAmount, value);
+    }
+
+    public int TotalQuantity
+    {
+        get => _totalQuantity;
+        private set => SetProperty(ref _totalQuantity, value);
+    }
+
+    public decimal TotalAreaM2
+    {
+        get => _totalAreaM2;
+        private set => SetProperty(ref _totalAreaM2, value);
     }
 
     public OrderAttachmentRowViewModel? SelectedAttachment
@@ -447,6 +461,8 @@ public sealed class OrderEditViewModel : ObservableObject
     {
         var entities = BuildItems();
         TotalAmount = OrderAmountCalculator.CalculateOrderTotal(entities);
+        TotalQuantity = OrderAmountCalculator.CalculateTotalQuantity(entities);
+        TotalAreaM2 = OrderAmountCalculator.CalculateTotalAreaM2(entities);
     }
 
     private void OnSave()

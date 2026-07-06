@@ -159,6 +159,7 @@
                     <DataGridTextColumn Header="长(mm)" Binding="{Binding GlassLengthMm, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="70" MinWidth="65" MaxWidth="75" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
                     <DataGridTextColumn Header="宽(mm)" Binding="{Binding GlassWidthMm, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="70" MinWidth="65" MaxWidth="75" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
                     <DataGridTextColumn Header="数量" Binding="{Binding Quantity, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="62" MinWidth="58" MaxWidth="66" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
+                    <DataGridTextColumn Header="平方(㎡)" Binding="{Binding AreaM2, StringFormat=F2}" IsReadOnly="True" Width="70" MinWidth="66" MaxWidth="80" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" />
                     <DataGridTextColumn Header="单价(元/㎡)" Binding="{Binding GlassUnitPricePerM2, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="78" MinWidth="74" MaxWidth="84" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
                     <DataGridTextColumn Header="打孔费" Binding="{Binding HoleFee, UpdateSourceTrigger=PropertyChanged, StringFormat=F0}" Width="68" MinWidth="64" MaxWidth="72" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
                     <DataGridTextColumn Header="其他费用" Binding="{Binding OtherFee, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="68" MinWidth="64" MaxWidth="72" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
@@ -168,6 +169,11 @@
             </DataGrid>
 
             <Grid Grid.Row="1" Margin="0,10,0,6">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <TextBlock Text="总计" FontWeight="Bold" FontSize="15" Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding TotalQuantity, StringFormat=总数量：{0}}" FontSize="15" Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding TotalAreaM2, StringFormat=总方数：{0:F2}}" FontSize="15" />
+                </StackPanel>
                 <TextBlock Text="{Binding TotalAmount, StringFormat=合计：{0:F0}}"
                            HorizontalAlignment="Right"
                            FontWeight="Bold"
