@@ -19,11 +19,16 @@ public sealed class OrderItemRowViewModel : ObservableObject
     private decimal _amount;
     private string? _note;
 
+    private string? _sampleBlockModel;
     private readonly Action? _recalculateCallback;
+    private readonly Func<string, (string WireModel, decimal Price)?>? _sampleBlockResolver;
 
-    public OrderItemRowViewModel(Action? recalculateCallback = null)
+    public OrderItemRowViewModel(
+        Action? recalculateCallback = null,
+        Func<string, (string WireModel, decimal Price)?>? sampleBlockResolver = null)
     {
         _recalculateCallback = recalculateCallback;
+        _sampleBlockResolver = sampleBlockResolver;
     }
 
     public Guid Id
@@ -107,6 +112,24 @@ public sealed class OrderItemRowViewModel : ObservableObject
         }
     }
 
+    public string? SampleBlockModel
+    {
+        get => _sampleBlockModel;
+        set
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            if (SetProperty(ref _sampleBlockModel, normalized))
+            {
+                var resolved = _sampleBlockResolver?.Invoke(normalized);
+                if (resolved is { } r)
+                {
+                    WireType = r.WireModel;
+                    WireUnitPrice = r.Price;
+                }
+            }
+        }
+    }
+
     public decimal WireUnitPrice
     {
         get => _wireUnitPrice;
@@ -167,6 +190,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
             Quantity = Quantity,
             GlassUnitPricePerM2 = GlassUnitPricePerM2,
             Model = string.IsNullOrWhiteSpace(Model) ? string.Empty : Model.Trim(),
+            SampleBlockModel = string.IsNullOrWhiteSpace(SampleBlockModel) ? null : SampleBlockModel.Trim(),
             WireType = WireType,
             WireUnitPrice = WireUnitPrice,
             HoleFee = HoleFee,
@@ -178,9 +202,12 @@ public sealed class OrderItemRowViewModel : ObservableObject
         return item;
     }
 
-    public static OrderItemRowViewModel FromEntity(OrderItem item, Action? recalculateCallback = null)
+    public static OrderItemRowViewModel FromEntity(
+        OrderItem item,
+        Action? recalculateCallback = null,
+        Func<string, (string WireModel, decimal Price)?>? sampleBlockResolver = null)
     {
-        var row = new OrderItemRowViewModel(recalculateCallback)
+        var row = new OrderItemRowViewModel(recalculateCallback, sampleBlockResolver)
         {
             Id = item.Id,
             GlassLengthMm = item.GlassLengthMm,
@@ -188,7 +215,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
             Quantity = item.Quantity,
             GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
             Model = item.Model,
-            WireType = item.WireType,
+            SampleBlockModel = item.SampleBlockModel, // set first — may trigger resolver
+            WireType = item.WireType,                 // overwrite with stored snapshot
             WireUnitPrice = item.WireUnitPrice,
             HoleFee = item.HoleFee,
             OtherFee = item.OtherFee,
@@ -199,9 +227,11 @@ public sealed class OrderItemRowViewModel : ObservableObject
         return row;
     }
 
-    public OrderItemRowViewModel CloneForCopy(Action? recalculateCallback = null)
+    public OrderItemRowViewModel CloneForCopy(
+        Action? recalculateCallback = null,
+        Func<string, (string WireModel, decimal Price)?>? sampleBlockResolver = null)
     {
-        return new OrderItemRowViewModel(recalculateCallback)
+        return new OrderItemRowViewModel(recalculateCallback, sampleBlockResolver)
         {
             Id = Guid.Empty,
             GlassLengthMm = GlassLengthMm,
@@ -209,7 +239,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
             Quantity = Quantity,
             GlassUnitPricePerM2 = GlassUnitPricePerM2,
             Model = Model,
-            WireType = WireType,
+            SampleBlockModel = SampleBlockModel, // set first — may trigger resolver
+            WireType = WireType,                 // overwrite with stored snapshot
             WireUnitPrice = WireUnitPrice,
             HoleFee = HoleFee,
             OtherFee = OtherFee,
