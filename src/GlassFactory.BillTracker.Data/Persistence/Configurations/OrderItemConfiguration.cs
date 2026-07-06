@@ -27,6 +27,11 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(x => x.Amount).HasPrecision(18, 4);
         builder.Property(x => x.Note).HasMaxLength(2000);
 
+        // Redundant with the composite index below (the composite covers OrderId-prefixed
+        // lookups), but InitialCreate physically created IX_OrderItems_OrderId and no migration
+        // ever dropped it. This declaration keeps the model in sync with the snapshot + existing
+        // databases so later migrations stay additive. Do NOT remove it — doing so makes EF emit a
+        // destructive DropIndex on OrderItems in the next migration (see commit 9651c34).
         builder.HasIndex(x => x.OrderId);
         builder.HasIndex(x => new { x.OrderId, x.SortIndex });
     }
