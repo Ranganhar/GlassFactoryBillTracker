@@ -13,6 +13,7 @@ public class BillTrackerDbContext : DbContext
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<OrderAttachment> OrderAttachments => Set<OrderAttachment>();
+    public DbSet<Wire> Wires => Set<Wire>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
