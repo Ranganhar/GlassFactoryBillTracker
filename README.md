@@ -82,7 +82,7 @@
   - 玻璃单价：元/㎡
 - 公式
   - 面积(㎡) = (LengthMm / 1000m) \* (WidthMm / 1000m)
-  - 玻璃费用 = AreaM2 _Quantity_ GlassUnitPricePerM2
+  - 玻璃费用 = AreaM2 \* Quantity \* GlassUnitPricePerM2
   - 行金额 = 玻璃费用 + WireUnitPrice + OtherFee
   - 订单总额 = Sum(LineAmount)
 - 精度
