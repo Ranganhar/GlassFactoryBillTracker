@@ -10,6 +10,7 @@ namespace GlassFactory.BillTracker.App.ViewModels;
 public sealed class WireManagementViewModel : ObservableObject
 {
     private readonly IWireService _wireService;
+    private readonly ISampleBlockService _sampleBlockService;
 
     private Guid _editingId;
     private string _model = string.Empty;
@@ -20,10 +21,12 @@ public sealed class WireManagementViewModel : ObservableObject
     private Wire? _selectedWire;
 
     public ObservableCollection<Wire> Wires { get; } = new();
+    public ObservableCollection<SampleBlock> RelatedSampleBlocks { get; } = new();
 
-    public WireManagementViewModel(IWireService wireService)
+    public WireManagementViewModel(IWireService wireService, ISampleBlockService sampleBlockService)
     {
         _wireService = wireService;
+        _sampleBlockService = sampleBlockService;
 
         NewCommand = new RelayCommand(ResetForm);
         SaveCommand = new RelayCommand(() => _ = SaveAsync());
@@ -44,9 +47,17 @@ public sealed class WireManagementViewModel : ObservableObject
         get => _selectedWire;
         set
         {
-            if (SetProperty(ref _selectedWire, value) && value is not null)
+            if (SetProperty(ref _selectedWire, value))
             {
-                LoadForm(value);
+                if (value is not null)
+                {
+                    LoadForm(value);
+                    _ = LoadRelatedAsync(value.Id);
+                }
+                else
+                {
+                    RelatedSampleBlocks.Clear();
+                }
             }
         }
     }
@@ -104,6 +115,23 @@ public sealed class WireManagementViewModel : ObservableObject
         Manufacturer = wire.Manufacturer;
         Price = wire.Price;
         Note = wire.Note;
+    }
+
+    private async Task LoadRelatedAsync(Guid wireId)
+    {
+        try
+        {
+            var related = await _sampleBlockService.GetByWireIdAsync(wireId);
+            RelatedSampleBlocks.Clear();
+            foreach (var sb in related)
+            {
+                RelatedSampleBlocks.Add(sb);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"加载关联样块失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void ResetForm()

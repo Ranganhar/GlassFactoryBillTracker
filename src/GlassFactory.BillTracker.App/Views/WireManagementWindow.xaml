@@ -26,6 +26,8 @@
                     <Button Content="保存" Command="{Binding SaveCommand}" Width="90" Margin="0,0,8,0" />
                     <Button Content="删除" Command="{Binding DeleteCommand}" Width="90" />
                 </StackPanel>
+                <TextBlock Text="该丝涉及的样块" FontWeight="Bold" Margin="0,14,0,4" />
+                <ListBox ItemsSource="{Binding RelatedSampleBlocks}" DisplayMemberPath="Model" Height="140" />
             </StackPanel>
         </Border>
 
