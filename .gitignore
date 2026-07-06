@@ -9,3 +9,7 @@ artifacts/
 *.db
 *.db-shm
 *.db-wal
+
+# Local runtime data directory (real customer/order DB + attachments) — never commit/push
+bills/
+.superpowers/
