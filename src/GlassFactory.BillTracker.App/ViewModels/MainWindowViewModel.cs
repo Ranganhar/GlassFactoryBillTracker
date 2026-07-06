@@ -10,6 +10,7 @@ using GlassFactory.BillTracker.App.ViewModels.Base;
 using GlassFactory.BillTracker.App.ViewModels.Rows;
 using GlassFactory.BillTracker.App.Views;
 using GlassFactory.BillTracker.Data.Exports;
+using GlassFactory.BillTracker.Data.Services;
 using GlassFactory.BillTracker.Domain.Entities;
 using GlassFactory.BillTracker.Domain.Enums;
 using Serilog;
@@ -23,6 +24,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IExportService _exportService;
     private readonly IFileDialogService _fileDialogService;
     private readonly IPrintService _printService;
+    private readonly IWireService _wireService;
 
     private bool _suppressAutoApply;
     private CancellationTokenSource? _debounceCts;
@@ -248,19 +250,22 @@ public sealed class MainWindowViewModel : ObservableObject
     public RelayCommand DeleteCustomerCommand { get; }
     public RelayCommand SearchCustomersCommand { get; }
     public RelayCommand<string> RemoveChipCommand { get; }
+    public RelayCommand OpenWireManagementCommand { get; }
 
     public MainWindowViewModel(
         ICustomerService customerService,
         IOrderService orderService,
         IExportService exportService,
         IFileDialogService fileDialogService,
-        IPrintService printService)
+        IPrintService printService,
+        IWireService wireService)
     {
         _customerService = customerService;
         _orderService = orderService;
         _exportService = exportService;
         _fileDialogService = fileDialogService;
         _printService = printService;
+        _wireService = wireService;
 
         SelectedPaymentFilter = PaymentMethodFilters.FirstOrDefault();
         SelectedStatusFilter = OrderStatusFilters.FirstOrDefault();
@@ -283,6 +288,7 @@ public sealed class MainWindowViewModel : ObservableObject
         EditCustomerCommand = new RelayCommand(() => ExecuteUiAction(EditSelectedCustomerAsync, "编辑客户"));
         DeleteCustomerCommand = new RelayCommand(() => ExecuteUiAction(DeleteSelectedCustomerAsync, "删除客户"));
         SearchCustomersCommand = new RelayCommand(() => ExecuteUiAction(LoadCustomersAsync, "客户搜索"));
+        OpenWireManagementCommand = new RelayCommand(OpenWireManagement);
 
         RemoveChipCommand = new RelayCommand<string>(chipKey =>
         {
@@ -703,6 +709,16 @@ public sealed class MainWindowViewModel : ObservableObject
 
         _suppressAutoApply = false;
         _ = ApplyFiltersAsync(force: true, showValidationError: false);
+    }
+
+    private void OpenWireManagement()
+    {
+        var window = new WireManagementWindow
+        {
+            Owner = Application.Current.MainWindow,
+            DataContext = new WireManagementViewModel(_wireService)
+        };
+        window.ShowDialog();
     }
 
     private async Task OpenCustomerDialogAsync(Guid? customerId)

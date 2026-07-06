@@ -6,6 +6,7 @@ using System.Windows.Input;
 using GlassFactory.BillTracker.App.Services;
 using GlassFactory.BillTracker.App.ViewModels;
 using GlassFactory.BillTracker.Data.Exports;
+using GlassFactory.BillTracker.Data.Services;
 using GlassFactory.BillTracker.Infrastructure.Services;
 
 namespace GlassFactory.BillTracker.App.Views;
@@ -24,8 +25,9 @@ public partial class MainWindow : Window
         var exportService = new ExportService(AppRuntimeContext.DbPath);
         var fileDialogService = new FileDialogService();
         var printService = new PrintService();
+        var wireService = new WireService(AppRuntimeContext.DbPath);
 
-        _viewModel = new MainWindowViewModel(customerService, orderService, exportService, fileDialogService, printService);
+        _viewModel = new MainWindowViewModel(customerService, orderService, exportService, fileDialogService, printService, wireService);
         DataContext = _viewModel;
     }
 
