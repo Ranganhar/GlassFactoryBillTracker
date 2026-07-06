@@ -29,6 +29,7 @@
                 <Button Content="刷新" Command="{Binding RefreshCommand}" Margin="2" />
                 <Separator />
                 <Button Content="丝管理" Command="{Binding OpenWireManagementCommand}" Margin="2" />
+                <Button Content="样块管理" Command="{Binding OpenSampleBlockManagementCommand}" Margin="2" />
                 <Separator />
                 <TextBlock VerticalAlignment="Center" Margin="4,0,4,0" Text="已选：" />
                 <TextBlock VerticalAlignment="Center" Margin="0,0,8,0" Text="{Binding SelectedOrderCount}" />

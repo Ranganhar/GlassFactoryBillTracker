@@ -25,6 +25,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IFileDialogService _fileDialogService;
     private readonly IPrintService _printService;
     private readonly IWireService _wireService;
+    private readonly ISampleBlockService _sampleBlockService;
 
     private bool _suppressAutoApply;
     private CancellationTokenSource? _debounceCts;
@@ -251,6 +252,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public RelayCommand SearchCustomersCommand { get; }
     public RelayCommand<string> RemoveChipCommand { get; }
     public RelayCommand OpenWireManagementCommand { get; }
+    public RelayCommand OpenSampleBlockManagementCommand { get; }
 
     public MainWindowViewModel(
         ICustomerService customerService,
@@ -258,7 +260,8 @@ public sealed class MainWindowViewModel : ObservableObject
         IExportService exportService,
         IFileDialogService fileDialogService,
         IPrintService printService,
-        IWireService wireService)
+        IWireService wireService,
+        ISampleBlockService sampleBlockService)
     {
         _customerService = customerService;
         _orderService = orderService;
@@ -266,6 +269,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _fileDialogService = fileDialogService;
         _printService = printService;
         _wireService = wireService;
+        _sampleBlockService = sampleBlockService;
 
         SelectedPaymentFilter = PaymentMethodFilters.FirstOrDefault();
         SelectedStatusFilter = OrderStatusFilters.FirstOrDefault();
@@ -289,6 +293,7 @@ public sealed class MainWindowViewModel : ObservableObject
         DeleteCustomerCommand = new RelayCommand(() => ExecuteUiAction(DeleteSelectedCustomerAsync, "删除客户"));
         SearchCustomersCommand = new RelayCommand(() => ExecuteUiAction(LoadCustomersAsync, "客户搜索"));
         OpenWireManagementCommand = new RelayCommand(OpenWireManagement);
+        OpenSampleBlockManagementCommand = new RelayCommand(OpenSampleBlockManagement);
 
         RemoveChipCommand = new RelayCommand<string>(chipKey =>
         {
@@ -717,6 +722,16 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             Owner = Application.Current.MainWindow,
             DataContext = new WireManagementViewModel(_wireService)
+        };
+        window.ShowDialog();
+    }
+
+    private void OpenSampleBlockManagement()
+    {
+        var window = new SampleBlockManagementWindow
+        {
+            Owner = Application.Current.MainWindow,
+            DataContext = new SampleBlockManagementViewModel(_sampleBlockService, _wireService)
         };
         window.ShowDialog();
     }
