@@ -422,6 +422,7 @@ public sealed class OrderService : IOrderService
                     Quantity = item.Quantity,
                     GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
                     Model = item.Model,
+                    SampleBlockModel = string.IsNullOrWhiteSpace(item.SampleBlockModel) ? null : item.SampleBlockModel.Trim(),
                     WireType = item.WireType,
                     WireUnitPrice = item.WireUnitPrice,
                     HoleFee = item.HoleFee,
@@ -475,6 +476,7 @@ public sealed class OrderService : IOrderService
                     Quantity = item.Quantity,
                     GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
                     Model = item.Model,
+                    SampleBlockModel = string.IsNullOrWhiteSpace(item.SampleBlockModel) ? null : item.SampleBlockModel.Trim(),
                     WireType = item.WireType,
                     WireUnitPrice = item.WireUnitPrice,
                     HoleFee = item.HoleFee,
@@ -593,6 +595,7 @@ public sealed class OrderService : IOrderService
             trackedItem.Quantity != incomingItem.Quantity ||
             trackedItem.GlassUnitPricePerM2 != incomingItem.GlassUnitPricePerM2 ||
             !string.Equals(trackedItem.Model, incomingItem.Model, StringComparison.Ordinal) ||
+            !string.Equals(trackedItem.SampleBlockModel ?? string.Empty, incomingItem.SampleBlockModel ?? string.Empty, StringComparison.Ordinal) ||
             !string.Equals(trackedItem.WireType, incomingItem.WireType, StringComparison.Ordinal) ||
             trackedItem.WireUnitPrice != incomingItem.WireUnitPrice ||
             trackedItem.HoleFee != incomingItem.HoleFee ||
@@ -611,6 +614,7 @@ public sealed class OrderService : IOrderService
         trackedItem.Quantity = incomingItem.Quantity;
         trackedItem.GlassUnitPricePerM2 = incomingItem.GlassUnitPricePerM2;
         trackedItem.Model = incomingItem.Model;
+        trackedItem.SampleBlockModel = string.IsNullOrWhiteSpace(incomingItem.SampleBlockModel) ? null : incomingItem.SampleBlockModel.Trim();
         trackedItem.WireType = incomingItem.WireType;
         trackedItem.WireUnitPrice = incomingItem.WireUnitPrice;
         trackedItem.HoleFee = incomingItem.HoleFee;
