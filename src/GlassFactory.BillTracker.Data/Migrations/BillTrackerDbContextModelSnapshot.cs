@@ -193,6 +193,8 @@ namespace GlassFactory.BillTracker.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("OrderId");
+
                     b.HasIndex("OrderId", "SortIndex");
 
                     b.ToTable("OrderItems", (string)null);

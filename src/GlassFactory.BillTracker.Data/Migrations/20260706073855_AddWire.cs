@@ -11,10 +11,6 @@ namespace GlassFactory.BillTracker.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_OrderItems_OrderId",
-                table: "OrderItems");
-
             migrationBuilder.CreateTable(
                 name: "Wires",
                 columns: table => new
@@ -44,11 +40,6 @@ namespace GlassFactory.BillTracker.Data.Migrations
         {
             migrationBuilder.DropTable(
                 name: "Wires");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_OrderItems_OrderId",
-                table: "OrderItems",
-                column: "OrderId");
         }
     }
 }

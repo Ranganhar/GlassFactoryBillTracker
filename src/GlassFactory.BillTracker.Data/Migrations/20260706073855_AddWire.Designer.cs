@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GlassFactory.BillTracker.Data.Migrations
 {
     [DbContext(typeof(BillTrackerDbContext))]
-    [Migration("20260706072519_AddWire")]
+    [Migration("20260706073855_AddWire")]
     partial class AddWire
     {
         /// <inheritdoc />
@@ -195,6 +195,8 @@ namespace GlassFactory.BillTracker.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
 
                     b.HasIndex("OrderId", "SortIndex");
 

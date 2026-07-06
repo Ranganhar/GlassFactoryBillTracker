@@ -26,6 +26,7 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(x => x.Amount).HasPrecision(18, 4);
         builder.Property(x => x.Note).HasMaxLength(2000);
 
+        builder.HasIndex(x => x.OrderId);
         builder.HasIndex(x => new { x.OrderId, x.SortIndex });
     }
 }
