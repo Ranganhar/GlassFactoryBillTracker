@@ -40,6 +40,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
             if (SetProperty(ref _glassLengthMm, value))
             {
                 Recalculate();
+                OnPropertyChanged(nameof(AreaM2));
             }
         }
     }
@@ -52,6 +53,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
             if (SetProperty(ref _glassWidthMm, value))
             {
                 Recalculate();
+                OnPropertyChanged(nameof(AreaM2));
             }
         }
     }
@@ -146,6 +148,8 @@ public sealed class OrderItemRowViewModel : ObservableObject
         get => _amount;
         private set => SetProperty(ref _amount, value);
     }
+
+    public decimal AreaM2 => OrderAmountCalculator.CalculateAreaM2Rounded(GlassLengthMm, GlassWidthMm);
 
     public string? Note
     {
