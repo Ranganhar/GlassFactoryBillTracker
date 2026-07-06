@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+.vscode/
+TestResults/
+artifacts/
+*.user
+*.suo
+*.db
+*.db-shm
+*.db-wal
+
+# Local runtime data directory (real customer/order DB + attachments) — never commit/push
+bills/
+.superpowers/
