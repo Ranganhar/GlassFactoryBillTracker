@@ -9,6 +9,22 @@ public static class OrderAmountCalculator
         return (glassLengthMm / 1000m) * (glassWidthMm / 1000m);
     }
 
+    public static decimal CalculateAreaM2Rounded(decimal glassLengthMm, decimal glassWidthMm)
+    {
+        return Math.Round(CalculateAreaM2(glassLengthMm, glassWidthMm), 2, MidpointRounding.AwayFromZero);
+    }
+
+    public static decimal CalculateTotalAreaM2(IEnumerable<OrderItem> items)
+    {
+        var sum = items.Sum(item => CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm));
+        return Math.Round(sum, 2, MidpointRounding.AwayFromZero);
+    }
+
+    public static int CalculateTotalQuantity(IEnumerable<OrderItem> items)
+    {
+        return items.Sum(item => item.Quantity);
+    }
+
     public static decimal CalculateGlassCost(OrderItem item)
     {
         var areaM2 = CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm);

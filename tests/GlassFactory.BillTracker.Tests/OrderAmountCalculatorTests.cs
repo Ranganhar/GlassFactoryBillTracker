@@ -113,4 +113,26 @@ public class OrderAmountCalculatorTests
         Assert.Equal(15m, rowAmount);
         Assert.Equal(15m, totalAmount);
     }
+
+    [Fact]
+    public void CalculateAreaM2Rounded_ShouldConvertMmToSquareMeters_TwoDecimals_AwayFromZero()
+    {
+        // 1234mm * 567mm => 1.234m * 0.567m = 0.699678 m^2 => round2 => 0.70
+        Assert.Equal(0.70m, OrderAmountCalculator.CalculateAreaM2Rounded(1234m, 567m));
+        // 1000mm * 1000mm => 1.00
+        Assert.Equal(1.00m, OrderAmountCalculator.CalculateAreaM2Rounded(1000m, 1000m));
+    }
+
+    [Fact]
+    public void CalculateTotalAreaM2AndQuantity_ShouldAggregateAcrossItems()
+    {
+        var items = new[]
+        {
+            new OrderItem { GlassLengthMm = 1000m, GlassWidthMm = 1000m, Quantity = 2 }, // 1.00 m^2
+            new OrderItem { GlassLengthMm = 500m, GlassWidthMm = 400m, Quantity = 3 }    // 0.20 m^2
+        };
+
+        Assert.Equal(1.20m, OrderAmountCalculator.CalculateTotalAreaM2(items));
+        Assert.Equal(5, OrderAmountCalculator.CalculateTotalQuantity(items));
+    }
 }
