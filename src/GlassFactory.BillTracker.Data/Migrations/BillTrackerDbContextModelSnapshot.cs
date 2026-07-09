@@ -177,10 +177,6 @@ namespace GlassFactory.BillTracker.Data.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("SampleBlockModel")
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("SortIndex")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
