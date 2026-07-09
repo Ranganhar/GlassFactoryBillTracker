@@ -13,7 +13,6 @@ public class OrderItem
     public decimal GlassUnitPricePerM2 { get; set; }
 
     public string Model { get; set; } = string.Empty;
-    public string? SampleBlockModel { get; set; }
     public string WireType { get; set; } = string.Empty;
     public decimal WireUnitPrice { get; set; }
     public decimal HoleFee { get; set; }

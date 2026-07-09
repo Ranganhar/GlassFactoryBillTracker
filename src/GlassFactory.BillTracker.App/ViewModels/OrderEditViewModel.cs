@@ -17,7 +17,6 @@ namespace GlassFactory.BillTracker.App.ViewModels;
 public sealed class OrderEditViewModel : ObservableObject
 {
     private readonly List<Customer> _customers;
-    private readonly IReadOnlyList<SampleBlock> _sampleBlocks;
     private readonly HashSet<Guid> _removedAttachmentIds = new();
 
     private Guid _id;
@@ -54,7 +53,6 @@ public sealed class OrderEditViewModel : ObservableObject
     public ObservableCollection<Customer> FilteredCustomers { get; } = new();
 
     public IReadOnlyList<Customer> Customers => _customers;
-    public IReadOnlyList<string> SampleBlockModels { get; private set; } = new List<string>();
     public IReadOnlyList<int> Hours { get; } = Enumerable.Range(0, 24).ToList();
     public IReadOnlyList<int> Minutes { get; } = Enumerable.Range(0, 60).ToList();
     public IReadOnlyList<PaymentMethod> PaymentMethods { get; } = Enum.GetValues<PaymentMethod>();
@@ -189,11 +187,9 @@ public sealed class OrderEditViewModel : ObservableObject
     public event Action? SelectAttachmentsRequested;
     public event Action<string, int?>? ValidationFailed;
 
-    public OrderEditViewModel(IReadOnlyList<Customer> customers, IReadOnlyList<SampleBlock> sampleBlocks, string orderNo, Order? existing = null)
+    public OrderEditViewModel(IReadOnlyList<Customer> customers, string orderNo, Order? existing = null)
     {
         _customers = CustomerOrdering.SortCustomers(customers);
-        _sampleBlocks = sampleBlocks;
-        SampleBlockModels = sampleBlocks.Select(x => x.Model).ToList();
 
         PropertyChanged += OnSelfPropertyChanged;
         Items.CollectionChanged += OnItemsCollectionChanged;
@@ -216,7 +212,7 @@ public sealed class OrderEditViewModel : ObservableObject
         {
             foreach (var item in existing.Items)
             {
-                Items.Add(OrderItemRowViewModel.FromEntity(item, RecalculateTotal, ResolveSampleBlock));
+                Items.Add(OrderItemRowViewModel.FromEntity(item, RecalculateTotal));
             }
         }
 
@@ -235,7 +231,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
         if (Items.Count == 0)
         {
-            Items.Add(new OrderItemRowViewModel(RecalculateTotal, ResolveSampleBlock));
+            Items.Add(new OrderItemRowViewModel(RecalculateTotal));
         }
 
         SelectedAttachment = Attachments.FirstOrDefault();
@@ -375,7 +371,7 @@ public sealed class OrderEditViewModel : ObservableObject
 
     private void AddItem()
     {
-        Items.Add(new OrderItemRowViewModel(RecalculateTotal, ResolveSampleBlock)
+        Items.Add(new OrderItemRowViewModel(RecalculateTotal)
         {
             Quantity = 1,
             WireType = "默认丝"
@@ -410,7 +406,7 @@ public sealed class OrderEditViewModel : ObservableObject
         Items.Remove(row);
         if (Items.Count == 0)
         {
-            Items.Add(new OrderItemRowViewModel(RecalculateTotal, ResolveSampleBlock));
+            Items.Add(new OrderItemRowViewModel(RecalculateTotal));
         }
 
         if (showEmptyMessage && SelectedItem is null && Items.Count > 0)
@@ -437,7 +433,7 @@ public sealed class OrderEditViewModel : ObservableObject
             return;
         }
 
-        var copied = rowToCopy.CloneForCopy(RecalculateTotal, ResolveSampleBlock);
+        var copied = rowToCopy.CloneForCopy(RecalculateTotal);
         Items.Insert(index + 1, copied);
         SelectedItem = copied;
         RecalculateTotal();
@@ -459,23 +455,6 @@ public sealed class OrderEditViewModel : ObservableObject
 
         Attachments.Remove(current);
         SelectedAttachment = Attachments.FirstOrDefault();
-    }
-
-    private (string WireModel, decimal Price)? ResolveSampleBlock(string model)
-    {
-        var normalized = (model ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return null;
-        }
-
-        var match = _sampleBlocks.FirstOrDefault(x => string.Equals(x.Model, normalized, StringComparison.Ordinal));
-        if (match is null)
-        {
-            return null;
-        }
-
-        return (match.Wire?.Model ?? string.Empty, match.Price);
     }
 
     private void RecalculateTotal()

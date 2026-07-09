@@ -18,7 +18,6 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(x => x.Quantity).IsRequired();
         builder.Property(x => x.GlassUnitPricePerM2).HasPrecision(18, 4);
         builder.Property(x => x.Model).IsRequired().HasMaxLength(200);
-        builder.Property(x => x.SampleBlockModel).HasMaxLength(100);
         builder.Property(x => x.WireType).IsRequired().HasMaxLength(200);
         builder.Property(x => x.WireUnitPrice).HasPrecision(18, 4);
         builder.Property(x => x.HoleFee).HasPrecision(18, 4);

@@ -816,8 +816,6 @@ public sealed class MainWindowViewModel : ObservableObject
                 return;
             }
 
-            var sampleBlocks = await _sampleBlockService.GetSampleBlocksAsync();
-
             Order? existingOrder = null;
             string orderNo;
 
@@ -838,7 +836,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 orderNo = await _orderService.GenerateOrderNoAsync(DateTime.Now);
             }
 
-            var vm = new OrderEditViewModel(customerEntities, sampleBlocks, orderNo, existingOrder);
+            var vm = new OrderEditViewModel(customerEntities, orderNo, existingOrder);
             var window = new OrderEditWindow
             {
                 Owner = Application.Current.MainWindow,
