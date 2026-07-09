@@ -21,11 +21,5 @@ public class WireConfiguration : IEntityTypeConfiguration<Wire>
             .WithOne(x => x.Wire)
             .HasForeignKey(x => x.WireId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        // Kept until the sample-block decoupling task (Task 6).
-        builder.HasMany(x => x.SampleBlocks)
-            .WithOne(x => x.Wire)
-            .HasForeignKey(x => x.WireId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

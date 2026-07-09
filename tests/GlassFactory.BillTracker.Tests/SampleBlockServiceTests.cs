@@ -20,52 +20,46 @@ public class SampleBlockServiceTests
     }
 
     [Fact]
-    public async Task SaveAsync_ShouldRequireExistingWire()
+    public async Task SaveAsync_RejectsDuplicateModel()
     {
         var (dbPath, dataDir) = NewEnv();
-        var svc = new SampleBlockService(dbPath);
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => svc.SaveAsync(new SampleBlock { Model = "SB-1", WireId = Guid.NewGuid(), Price = 1m }));
+        var svc = new SampleBlockService(dbPath, dataDir);
+        await svc.SaveAsync(new SampleBlock { Model = "SB-1" });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.SaveAsync(new SampleBlock { Model = "SB-1" }));
     }
 
     [Fact]
-    public async Task GetByModelAsync_ShouldReturnSampleBlockWithWire()
+    public async Task GetSampleBlocksAsync_FiltersByModelCustomerOrderTimeNote()
     {
         var (dbPath, dataDir) = NewEnv();
-        var wireSvc = new WireService(dbPath, dataDir);
-        var sbSvc = new SampleBlockService(dbPath);
-        var wire = await wireSvc.SaveAsync(new Wire { Model = "W-9", Price = 7m });
-        await sbSvc.SaveAsync(new SampleBlock { Model = "SB-9", WireId = wire.Id, Price = 30m });
+        var svc = new SampleBlockService(dbPath, dataDir);
+        await svc.SaveAsync(new SampleBlock { Model = "样块甲", Customer = "老王", OrderTime = new DateTime(2026, 1, 5), Note = "红" });
+        await svc.SaveAsync(new SampleBlock { Model = "样块乙", Customer = "老李", OrderTime = new DateTime(2026, 6, 5), Note = "蓝" });
 
-        var found = await sbSvc.GetByModelAsync("SB-9");
-        Assert.NotNull(found);
-        Assert.Equal("W-9", found!.Wire.Model);
-        Assert.Equal(30m, found.Price);
+        Assert.Single(await svc.GetSampleBlocksAsync(new SampleBlockFilter { Model = "甲" }));
+        Assert.Single(await svc.GetSampleBlocksAsync(new SampleBlockFilter { Customer = "李" }));
+        Assert.Single(await svc.GetSampleBlocksAsync(new SampleBlockFilter { OrderFrom = new DateTime(2026, 3, 1) }));
+        Assert.Single(await svc.GetSampleBlocksAsync(new SampleBlockFilter { Note = "红" }));
+        Assert.Equal(2, (await svc.GetSampleBlocksAsync()).Count);
     }
 
     [Fact]
-    public async Task GetByWireIdAsync_ShouldReturnRelatedSampleBlocks()
+    public async Task Attachment_AddThenRemove_CopiesAndDeletes()
     {
         var (dbPath, dataDir) = NewEnv();
-        var wireSvc = new WireService(dbPath, dataDir);
-        var sbSvc = new SampleBlockService(dbPath);
-        var wire = await wireSvc.SaveAsync(new Wire { Model = "W-10", Price = 1m });
-        await sbSvc.SaveAsync(new SampleBlock { Model = "SB-A", WireId = wire.Id, Price = 1m });
-        await sbSvc.SaveAsync(new SampleBlock { Model = "SB-B", WireId = wire.Id, Price = 2m });
+        var svc = new SampleBlockService(dbPath, dataDir);
+        var sb = await svc.SaveAsync(new SampleBlock { Model = "SB-A" });
+        var src = Path.Combine(dataDir, "src.png");
+        await File.WriteAllBytesAsync(src, new byte[] { 1, 2, 3 });
 
-        var related = await sbSvc.GetByWireIdAsync(wire.Id);
-        Assert.Equal(2, related.Count);
-    }
+        var att = await svc.AddAttachmentAsync(sb.Id, src);
+        var abs = Path.Combine(dataDir, att.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(abs));
+        Assert.StartsWith("attachments/sampleblocks/", att.RelativePath);
+        Assert.Single((await svc.GetByIdAsync(sb.Id))!.Attachments);
 
-    [Fact]
-    public async Task WireDelete_ShouldBeBlocked_WhenReferencedBySampleBlock()
-    {
-        var (dbPath, dataDir) = NewEnv();
-        var wireSvc = new WireService(dbPath, dataDir);
-        var sbSvc = new SampleBlockService(dbPath);
-        var wire = await wireSvc.SaveAsync(new Wire { Model = "W-11", Price = 1m });
-        await sbSvc.SaveAsync(new SampleBlock { Model = "SB-C", WireId = wire.Id, Price = 1m });
-
-        await Assert.ThrowsAsync<DbUpdateException>(() => wireSvc.DeleteAsync(wire.Id));
+        await svc.RemoveAttachmentAsync(att.Id);
+        Assert.False(File.Exists(abs));
+        Assert.Empty((await svc.GetByIdAsync(sb.Id))!.Attachments);
     }
 }

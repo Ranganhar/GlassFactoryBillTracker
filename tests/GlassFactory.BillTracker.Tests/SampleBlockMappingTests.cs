@@ -1,6 +1,5 @@
 using GlassFactory.BillTracker.Data.Persistence;
 using GlassFactory.BillTracker.Domain.Entities;
-using GlassFactory.BillTracker.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace GlassFactory.BillTracker.Tests;
@@ -19,20 +18,21 @@ public class SampleBlockMappingTests
     }
 
     [Fact]
-    public async Task SampleBlock_ShouldPersistWithWire()
+    public async Task SampleBlock_PersistsCustomerOrderTimeAndAttachments_CascadeDelete()
     {
         await using var db = NewDb();
-        var wire = new Wire { Model = "W-1", Price = 3m };
-        db.Wires.Add(wire);
+        var sb = new SampleBlock { Model = "SB-1", Customer = "老王", OrderTime = new DateTime(2026, 5, 2), Note = "n" };
+        sb.Attachments.Add(new SampleBlockAttachment { RelativePath = "attachments/sampleblocks/x/a.png" });
+        db.SampleBlocks.Add(sb);
         await db.SaveChangesAsync();
 
-        db.SampleBlocks.Add(new SampleBlock { Model = "SB-1", WireId = wire.Id, Price = 20m });
-        await db.SaveChangesAsync();
+        var reloaded = await db.SampleBlocks.AsNoTracking().Include(x => x.Attachments).SingleAsync(x => x.Model == "SB-1");
+        Assert.Equal("老王", reloaded.Customer);
+        Assert.Equal(new DateTime(2026, 5, 2), reloaded.OrderTime);
+        Assert.Single(reloaded.Attachments);
 
-        var reloaded = await db.SampleBlocks.AsNoTracking().Include(x => x.Wire).SingleAsync(x => x.Model == "SB-1");
-        Assert.Equal("W-1", reloaded.Wire.Model);
-        Assert.Equal(20m, reloaded.Price);
+        db.SampleBlocks.Remove(await db.SampleBlocks.SingleAsync(x => x.Id == sb.Id));
+        await db.SaveChangesAsync();
+        Assert.Empty(await db.SampleBlockAttachments.ToListAsync());
     }
-
-
 }

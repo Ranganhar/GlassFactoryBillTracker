@@ -11,6 +11,4 @@ public class Wire
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
 
     public ICollection<WireAttachment> Attachments { get; set; } = new List<WireAttachment>();
-    // Kept until the sample-block decoupling task (Task 6); removed there.
-    public ICollection<SampleBlock> SampleBlocks { get; set; } = new List<SampleBlock>();
 }
