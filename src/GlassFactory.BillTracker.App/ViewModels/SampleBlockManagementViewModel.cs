@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using GlassFactory.BillTracker.App.Commands;
 using GlassFactory.BillTracker.App.ViewModels.Base;
+using GlassFactory.BillTracker.App.ViewModels.Rows;
 using GlassFactory.BillTracker.Data.Services;
 using GlassFactory.BillTracker.Domain.Entities;
 
@@ -9,113 +11,77 @@ namespace GlassFactory.BillTracker.App.ViewModels;
 
 public sealed class SampleBlockManagementViewModel : ObservableObject
 {
-    private readonly ISampleBlockService _sampleBlockService;
-    private readonly IWireService _wireService;
+    private readonly ISampleBlockService _service;
 
     private Guid _editingId;
     private string _model = string.Empty;
-    private Wire? _selectedWire;
-    private decimal _price;
+    private string? _customer;
+    private DateTime? _orderTime;
     private string? _note;
-    private string? _searchKeyword;
-    private SampleBlock? _selectedSampleBlock;
+    private SampleBlock? _selected;
+
+    private string? _filterModel;
+    private string? _filterCustomer;
+    private DateTime? _filterFrom;
+    private DateTime? _filterTo;
+    private string? _filterNote;
+
+    private readonly List<string> _newAttachmentPaths = new();
+    private readonly List<Guid> _removedAttachmentIds = new();
 
     public ObservableCollection<SampleBlock> SampleBlocks { get; } = new();
-    public ObservableCollection<Wire> Wires { get; } = new();
+    public ObservableCollection<ManagedAttachmentViewModel> Attachments { get; } = new();
 
-    public SampleBlockManagementViewModel(ISampleBlockService sampleBlockService, IWireService wireService)
+    public SampleBlockManagementViewModel(ISampleBlockService service)
     {
-        _sampleBlockService = sampleBlockService;
-        _wireService = wireService;
-
+        _service = service;
         NewCommand = new RelayCommand(ResetForm);
         SaveCommand = new RelayCommand(() => _ = SaveAsync());
         DeleteCommand = new RelayCommand(() => _ = DeleteAsync());
-        SearchCommand = new RelayCommand(() => _ = LoadSampleBlocksAsync());
-
-        _ = InitAsync();
+        SearchCommand = new RelayCommand(() => _ = LoadAsync());
+        ClearFilterCommand = new RelayCommand(ClearFilter);
+        AddImageCommand = new RelayCommand(AddImages);
+        RemoveImageCommand = new RelayCommand<ManagedAttachmentViewModel>(RemoveImage);
+        _ = LoadAsync();
     }
 
-    public string? SearchKeyword
+    public string? FilterModel { get => _filterModel; set => SetProperty(ref _filterModel, value); }
+    public string? FilterCustomer { get => _filterCustomer; set => SetProperty(ref _filterCustomer, value); }
+    public DateTime? FilterFrom { get => _filterFrom; set => SetProperty(ref _filterFrom, value); }
+    public DateTime? FilterTo { get => _filterTo; set => SetProperty(ref _filterTo, value); }
+    public string? FilterNote { get => _filterNote; set => SetProperty(ref _filterNote, value); }
+
+    public SampleBlock? Selected
     {
-        get => _searchKeyword;
-        set => SetProperty(ref _searchKeyword, value);
+        get => _selected;
+        set { if (SetProperty(ref _selected, value) && value is not null) LoadForm(value); }
     }
 
-    public SampleBlock? SelectedSampleBlock
-    {
-        get => _selectedSampleBlock;
-        set
-        {
-            if (SetProperty(ref _selectedSampleBlock, value) && value is not null)
-            {
-                LoadForm(value);
-            }
-        }
-    }
-
-    public string Model
-    {
-        get => _model;
-        set => SetProperty(ref _model, value);
-    }
-
-    public Wire? SelectedWire
-    {
-        get => _selectedWire;
-        set => SetProperty(ref _selectedWire, value);
-    }
-
-    public decimal Price
-    {
-        get => _price;
-        set => SetProperty(ref _price, value);
-    }
-
-    public string? Note
-    {
-        get => _note;
-        set => SetProperty(ref _note, value);
-    }
+    public string Model { get => _model; set => SetProperty(ref _model, value); }
+    public string? Customer { get => _customer; set => SetProperty(ref _customer, value); }
+    public DateTime? OrderTime { get => _orderTime; set => SetProperty(ref _orderTime, value); }
+    public string? Note { get => _note; set => SetProperty(ref _note, value); }
 
     public RelayCommand NewCommand { get; }
     public RelayCommand SaveCommand { get; }
     public RelayCommand DeleteCommand { get; }
     public RelayCommand SearchCommand { get; }
+    public RelayCommand ClearFilterCommand { get; }
+    public RelayCommand AddImageCommand { get; }
+    public RelayCommand<ManagedAttachmentViewModel> RemoveImageCommand { get; }
 
-    private async Task InitAsync()
-    {
-        await LoadWiresAsync();
-        await LoadSampleBlocksAsync();
-    }
-
-    private async Task LoadWiresAsync()
+    public async Task LoadAsync()
     {
         try
         {
-            var wires = await _wireService.GetWiresAsync();
-            Wires.Clear();
-            foreach (var w in wires)
+            var filter = new SampleBlockFilter
             {
-                Wires.Add(w);
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"加载丝列表失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    public async Task LoadSampleBlocksAsync()
-    {
-        try
-        {
-            var items = await _sampleBlockService.GetSampleBlocksAsync(SearchKeyword);
+                Model = FilterModel, Customer = FilterCustomer,
+                OrderFrom = FilterFrom?.Date, OrderTo = FilterTo?.Date, Note = FilterNote
+            };
+            var items = await _service.GetSampleBlocksAsync(filter);
             SampleBlocks.Clear();
-            foreach (var sb in items)
-            {
-                SampleBlocks.Add(sb);
-            }
+            foreach (var s in items) SampleBlocks.Add(s);
         }
         catch (Exception ex)
         {
@@ -123,45 +89,65 @@ public sealed class SampleBlockManagementViewModel : ObservableObject
         }
     }
 
+    private void ClearFilter()
+    {
+        FilterModel = null; FilterCustomer = null; FilterFrom = null; FilterTo = null; FilterNote = null;
+        _ = LoadAsync();
+    }
+
     private void LoadForm(SampleBlock sb)
     {
         _editingId = sb.Id;
-        Model = sb.Model;
-        SelectedWire = Wires.FirstOrDefault(x => x.Id == sb.WireId);
-        Price = sb.Price;
-        Note = sb.Note;
+        Model = sb.Model; Customer = sb.Customer; OrderTime = sb.OrderTime; Note = sb.Note;
+        _newAttachmentPaths.Clear(); _removedAttachmentIds.Clear(); Attachments.Clear();
+        foreach (var a in sb.Attachments)
+            Attachments.Add(new ManagedAttachmentViewModel { AttachmentId = a.Id, RelativePath = a.RelativePath });
     }
 
     private void ResetForm()
     {
         _editingId = Guid.Empty;
-        Model = string.Empty;
-        SelectedWire = null;
-        Price = 0m;
-        Note = null;
-        SelectedSampleBlock = null;
+        Model = string.Empty; Customer = null; OrderTime = null; Note = null;
+        Selected = null;
+        _newAttachmentPaths.Clear(); _removedAttachmentIds.Clear(); Attachments.Clear();
+    }
+
+    private void AddImages()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|所有文件|*.*",
+            Multiselect = true
+        };
+        if (dialog.ShowDialog() != true) return;
+        foreach (var path in dialog.FileNames)
+        {
+            if (!File.Exists(path)) continue;
+            _newAttachmentPaths.Add(path);
+            Attachments.Add(new ManagedAttachmentViewModel { SourcePath = path });
+        }
+    }
+
+    private void RemoveImage(ManagedAttachmentViewModel? att)
+    {
+        if (att is null) return;
+        if (att.IsPersisted && att.AttachmentId.HasValue) _removedAttachmentIds.Add(att.AttachmentId.Value);
+        else if (!string.IsNullOrWhiteSpace(att.SourcePath)) _newAttachmentPaths.Remove(att.SourcePath);
+        Attachments.Remove(att);
     }
 
     private async Task SaveAsync()
     {
-        if (SelectedWire is null)
-        {
-            MessageBox.Show("请为样块选择丝。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
         try
         {
-            var saved = await _sampleBlockService.SaveAsync(new SampleBlock
+            var saved = await _service.SaveAsync(new SampleBlock
             {
-                Id = _editingId,
-                Model = Model,
-                WireId = SelectedWire.Id,
-                Price = Price,
-                Note = Note
+                Id = _editingId, Model = Model, Customer = Customer, OrderTime = OrderTime?.Date, Note = Note
             });
-            await LoadSampleBlocksAsync();
-            SelectedSampleBlock = SampleBlocks.FirstOrDefault(x => x.Id == saved.Id);
+            foreach (var rid in _removedAttachmentIds) await _service.RemoveAttachmentAsync(rid);
+            foreach (var p in _newAttachmentPaths) await _service.AddAttachmentAsync(saved.Id, p);
+            await LoadAsync();
+            Selected = SampleBlocks.FirstOrDefault(x => x.Id == saved.Id);
         }
         catch (Exception ex)
         {
@@ -176,17 +162,12 @@ public sealed class SampleBlockManagementViewModel : ObservableObject
             MessageBox.Show("请先在列表中选择要删除的样块。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-
-        if (MessageBox.Show($"确认删除样块\"{Model}\"吗？", "删除确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
+        if (MessageBox.Show($"确认删除样块 \"{Model}\" 吗？", "删除确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         try
         {
-            await _sampleBlockService.DeleteAsync(_editingId);
+            await _service.DeleteAsync(_editingId);
             ResetForm();
-            await LoadSampleBlocksAsync();
+            await LoadAsync();
         }
         catch (Exception ex)
         {
