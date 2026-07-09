@@ -25,7 +25,7 @@ public partial class MainWindow : Window
         var exportService = new ExportService(AppRuntimeContext.DbPath);
         var fileDialogService = new FileDialogService();
         var printService = new PrintService();
-        var wireService = new WireService(AppRuntimeContext.DbPath);
+        var wireService = new WireService(AppRuntimeContext.DbPath, AppRuntimeContext.DataDir);
         var sampleBlockService = new SampleBlockService(AppRuntimeContext.DbPath);
 
         _viewModel = new MainWindowViewModel(customerService, orderService, exportService, fileDialogService, printService, wireService, sampleBlockService);

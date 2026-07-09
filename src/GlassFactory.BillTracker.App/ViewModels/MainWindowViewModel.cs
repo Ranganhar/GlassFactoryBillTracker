@@ -721,7 +721,7 @@ public sealed class MainWindowViewModel : ObservableObject
         var window = new WireManagementWindow
         {
             Owner = Application.Current.MainWindow,
-            DataContext = new WireManagementViewModel(_wireService, _sampleBlockService)
+            DataContext = new WireManagementViewModel(_wireService)
         };
         window.ShowDialog();
     }
