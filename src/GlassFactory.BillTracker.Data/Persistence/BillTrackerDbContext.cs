@@ -14,6 +14,7 @@ public class BillTrackerDbContext : DbContext
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<OrderAttachment> OrderAttachments => Set<OrderAttachment>();
     public DbSet<Wire> Wires => Set<Wire>();
+    public DbSet<WireAttachment> WireAttachments => Set<WireAttachment>();
     public DbSet<SampleBlock> SampleBlocks => Set<SampleBlock>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
