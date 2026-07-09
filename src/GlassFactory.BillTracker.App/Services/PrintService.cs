@@ -396,7 +396,7 @@ public sealed class PrintService : IPrintService
             columns,
             columnWidths,
             pageRows,
-            includeFooter ? $"合计：{FormatMoney2(order.TotalAmount)}" : null,
+            includeFooter ? BuildTotalsFooterText(order) : null,
             tableFontSize,
             tableHeaderHeight,
             footerHeight);
@@ -660,7 +660,7 @@ public sealed class PrintService : IPrintService
 
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var totalCell = CreateTotalFooterCell(
-            $"合计：{FormatMoney2(order.TotalAmount)}",
+            BuildTotalsFooterText(order),
             fontSize: tableFontSize,
             cellWidth: columnWidths.Sum(),
             debugContext: isDotMatrix ? "A4-DotMatrix" : "A4",
@@ -1025,6 +1025,14 @@ public sealed class PrintService : IPrintService
     private static string FormatMoney2(decimal value)
     {
         return OrderAmountCalculator.RoundAmount(value).ToString("F0", CultureInfo.InvariantCulture);
+    }
+
+    private static string BuildTotalsFooterText(OrderExportDto order)
+    {
+        var items = (order.Items ?? Array.Empty<OrderExportItemDto>()).Where(i => i is not null).ToList();
+        var totalQty = items.Sum(i => i.Quantity);
+        var totalArea = items.Sum(i => OrderAmountCalculator.CalculateAreaM2Rounded(i.GlassLengthMm, i.GlassWidthMm));
+        return $"总数量：{totalQty}    总方数：{totalArea.ToString("F2", CultureInfo.InvariantCulture)}    合计：{FormatMoney2(order.TotalAmount)}";
     }
 
     private static double MmToDip(double mm)
