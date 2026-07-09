@@ -3,6 +3,7 @@ using System;
 using GlassFactory.BillTracker.Data.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GlassFactory.BillTracker.Data.Migrations
 {
     [DbContext(typeof(BillTrackerDbContext))]
-    partial class BillTrackerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260709070739_ReworkWire")]
+    partial class ReworkWire
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.12");
@@ -209,10 +212,6 @@ namespace GlassFactory.BillTracker.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Customer")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Model")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -222,10 +221,14 @@ namespace GlassFactory.BillTracker.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("OrderTime")
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("WireId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -233,31 +236,9 @@ namespace GlassFactory.BillTracker.Data.Migrations
                     b.HasIndex("Model")
                         .IsUnique();
 
+                    b.HasIndex("WireId");
+
                     b.ToTable("SampleBlocks", (string)null);
-                });
-
-            modelBuilder.Entity("GlassFactory.BillTracker.Domain.Entities.SampleBlockAttachment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RelativePath")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("SampleBlockId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SampleBlockId");
-
-                    b.ToTable("SampleBlockAttachments", (string)null);
                 });
 
             modelBuilder.Entity("GlassFactory.BillTracker.Domain.Entities.Wire", b =>
@@ -353,15 +334,15 @@ namespace GlassFactory.BillTracker.Data.Migrations
                     b.Navigation("Order");
                 });
 
-            modelBuilder.Entity("GlassFactory.BillTracker.Domain.Entities.SampleBlockAttachment", b =>
+            modelBuilder.Entity("GlassFactory.BillTracker.Domain.Entities.SampleBlock", b =>
                 {
-                    b.HasOne("GlassFactory.BillTracker.Domain.Entities.SampleBlock", "SampleBlock")
-                        .WithMany("Attachments")
-                        .HasForeignKey("SampleBlockId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("GlassFactory.BillTracker.Domain.Entities.Wire", "Wire")
+                        .WithMany("SampleBlocks")
+                        .HasForeignKey("WireId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("SampleBlock");
+                    b.Navigation("Wire");
                 });
 
             modelBuilder.Entity("GlassFactory.BillTracker.Domain.Entities.WireAttachment", b =>
@@ -387,14 +368,11 @@ namespace GlassFactory.BillTracker.Data.Migrations
                     b.Navigation("Items");
                 });
 
-            modelBuilder.Entity("GlassFactory.BillTracker.Domain.Entities.SampleBlock", b =>
-                {
-                    b.Navigation("Attachments");
-                });
-
             modelBuilder.Entity("GlassFactory.BillTracker.Domain.Entities.Wire", b =>
                 {
                     b.Navigation("Attachments");
+
+                    b.Navigation("SampleBlocks");
                 });
 #pragma warning restore 612, 618
         }

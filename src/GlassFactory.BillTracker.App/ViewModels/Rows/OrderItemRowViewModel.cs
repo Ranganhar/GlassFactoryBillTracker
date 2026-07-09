@@ -19,16 +19,11 @@ public sealed class OrderItemRowViewModel : ObservableObject
     private decimal _amount;
     private string? _note;
 
-    private string? _sampleBlockModel;
     private readonly Action? _recalculateCallback;
-    private readonly Func<string, (string WireModel, decimal Price)?>? _sampleBlockResolver;
 
-    public OrderItemRowViewModel(
-        Action? recalculateCallback = null,
-        Func<string, (string WireModel, decimal Price)?>? sampleBlockResolver = null)
+    public OrderItemRowViewModel(Action? recalculateCallback = null)
     {
         _recalculateCallback = recalculateCallback;
-        _sampleBlockResolver = sampleBlockResolver;
     }
 
     public Guid Id
@@ -112,24 +107,6 @@ public sealed class OrderItemRowViewModel : ObservableObject
         }
     }
 
-    public string? SampleBlockModel
-    {
-        get => _sampleBlockModel;
-        set
-        {
-            var normalized = (value ?? string.Empty).Trim();
-            if (SetProperty(ref _sampleBlockModel, normalized))
-            {
-                var resolved = _sampleBlockResolver?.Invoke(normalized);
-                if (resolved is { } r)
-                {
-                    WireType = r.WireModel;
-                    WireUnitPrice = r.Price;
-                }
-            }
-        }
-    }
-
     public decimal WireUnitPrice
     {
         get => _wireUnitPrice;
@@ -190,7 +167,6 @@ public sealed class OrderItemRowViewModel : ObservableObject
             Quantity = Quantity,
             GlassUnitPricePerM2 = GlassUnitPricePerM2,
             Model = string.IsNullOrWhiteSpace(Model) ? string.Empty : Model.Trim(),
-            SampleBlockModel = string.IsNullOrWhiteSpace(SampleBlockModel) ? null : SampleBlockModel.Trim(),
             WireType = WireType,
             WireUnitPrice = WireUnitPrice,
             HoleFee = HoleFee,
@@ -204,10 +180,9 @@ public sealed class OrderItemRowViewModel : ObservableObject
 
     public static OrderItemRowViewModel FromEntity(
         OrderItem item,
-        Action? recalculateCallback = null,
-        Func<string, (string WireModel, decimal Price)?>? sampleBlockResolver = null)
+        Action? recalculateCallback = null)
     {
-        var row = new OrderItemRowViewModel(recalculateCallback, sampleBlockResolver)
+        var row = new OrderItemRowViewModel(recalculateCallback)
         {
             Id = item.Id,
             GlassLengthMm = item.GlassLengthMm,
@@ -215,8 +190,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
             Quantity = item.Quantity,
             GlassUnitPricePerM2 = item.GlassUnitPricePerM2,
             Model = item.Model,
-            SampleBlockModel = item.SampleBlockModel, // set first — may trigger resolver
-            WireType = item.WireType,                 // overwrite with stored snapshot
+            WireType = item.WireType,
             WireUnitPrice = item.WireUnitPrice,
             HoleFee = item.HoleFee,
             OtherFee = item.OtherFee,
@@ -227,11 +201,9 @@ public sealed class OrderItemRowViewModel : ObservableObject
         return row;
     }
 
-    public OrderItemRowViewModel CloneForCopy(
-        Action? recalculateCallback = null,
-        Func<string, (string WireModel, decimal Price)?>? sampleBlockResolver = null)
+    public OrderItemRowViewModel CloneForCopy(Action? recalculateCallback = null)
     {
-        return new OrderItemRowViewModel(recalculateCallback, sampleBlockResolver)
+        return new OrderItemRowViewModel(recalculateCallback)
         {
             Id = Guid.Empty,
             GlassLengthMm = GlassLengthMm,
@@ -239,8 +211,7 @@ public sealed class OrderItemRowViewModel : ObservableObject
             Quantity = Quantity,
             GlassUnitPricePerM2 = GlassUnitPricePerM2,
             Model = Model,
-            SampleBlockModel = SampleBlockModel, // set first — may trigger resolver
-            WireType = WireType,                 // overwrite with stored snapshot
+            WireType = WireType,
             WireUnitPrice = WireUnitPrice,
             HoleFee = HoleFee,
             OtherFee = OtherFee,

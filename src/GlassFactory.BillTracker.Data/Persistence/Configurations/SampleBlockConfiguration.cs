@@ -11,12 +11,15 @@ public class SampleBlockConfiguration : IEntityTypeConfiguration<SampleBlock>
         builder.ToTable("SampleBlocks");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Model).IsRequired().HasMaxLength(100);
-        builder.Property(x => x.Price).HasPrecision(18, 4);
+        builder.Property(x => x.Customer).HasMaxLength(200);
         builder.Property(x => x.Note).HasMaxLength(2000);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.UpdatedAt).IsRequired();
         builder.HasIndex(x => x.Model).IsUnique();
-        builder.HasIndex(x => x.WireId);
-        // WireId -> Wire 关系在 WireConfiguration 单侧配置
+
+        builder.HasMany(x => x.Attachments)
+            .WithOne(x => x.SampleBlock)
+            .HasForeignKey(x => x.SampleBlockId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

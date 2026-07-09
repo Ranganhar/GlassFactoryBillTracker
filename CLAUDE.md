@@ -48,7 +48,7 @@ Without `BILLTRACKER_DATA_DIR`, `DesignTimeDbContextFactory` falls back to a fol
 Four layers under `src/`, plus `tests/` and `tools/`:
 
 - **Domain** — entities (`Customer`, `Order`, `OrderItem`, `OrderAttachment`, `Wire`, `SampleBlock`), enums (`OrderStatus`, `PaymentMethod`), and pure calculation services. No dependencies.
-- **Data** — `BillTrackerDbContext`, per-entity `IEntityTypeConfiguration` classes (auto-discovered via `ApplyConfigurationsFromAssembly`), EF migrations, and the Excel/JSON `ExportService`. Also contains `WireService` and `SampleBlockService` — both follow the `ExportService` convention: `(string dbPath)` constructor, no static state, directly testable by unit tests without the App layer.
+- **Data** — `BillTrackerDbContext`, per-entity `IEntityTypeConfiguration` classes (auto-discovered via `ApplyConfigurationsFromAssembly`), EF migrations, and the Excel/JSON `ExportService`. Also contains `WireService` and `SampleBlockService` — both use a `(string dbPath, string dataDir)` constructor, no static state, directly testable by unit tests without the App layer.
 - **Infrastructure** — data-directory selection, attachment storage, DB-path provider. Depends only on its own `Abstractions/` interfaces.
 - **App** — WPF views + MVVM ViewModels + interaction services (order/customer/print/export orchestration).
 
@@ -86,9 +86,16 @@ When aggregating totals in EF queries, note the deliberate scaled-`long` trick (
 
 ### Wire / SampleBlock subsystem
 
-`Wire` and `SampleBlock` entities are defined in the **Domain** layer. Their services (`WireService`, `SampleBlockService`) live in the **Data** layer — not App — using a `(string dbPath)` constructor so they can be exercised by unit tests directly (same pattern as `ExportService`).
+`Wire` and `SampleBlock` entities are defined in the **Domain** layer. Their services (`WireService`, `SampleBlockService`) live in the **Data** layer — not App — using a `(string dbPath, string dataDir)` constructor so they can be exercised by unit tests directly (same pattern as `ExportService`).
 
-On `OrderItem`, the `SampleBlockModel` column stores the selected sample-block type as a **snapshot string** at the time of order save. `WireType` and `WireUnitPrice` are reused as snapshot fields for the derived wire type and sample-block reference price respectively — **these do not affect the amount formula**. Changing sample-block master data after an order is saved does not retroactively alter historical `LineAmount` values.
+**丝 and 样块 are independent master-data records; they are not linked to each other and neither is connected to orders.**
+
+- **Wire** fields: `Model` (unique), `Price`, `PurchaseDate`, `Note`. Attachments stored in `attachments/wires/<id>/` via the `WireAttachments` table (FK Cascade — deleting a Wire deletes its attachment rows and the on-disk directory).
+- **SampleBlock** fields: `Model` (unique), `Customer`, `OrderTime`, `Note`. Attachments stored in `attachments/sampleblocks/<id>/` via the `SampleBlockAttachments` table (same Cascade + directory-cleanup pattern).
+- `WireService.GetWiresAsync` accepts a `WireFilter` with fields: `Model`, `PriceMin`, `PriceMax`, `PurchaseFrom`, `PurchaseTo`, `Note`.
+- `SampleBlockService.GetSampleBlocksAsync` accepts a `SampleBlockFilter` with fields: `Model`, `Customer`, `OrderFrom`, `OrderTo`, `Note`.
+- `OrderItem` no longer has a `SampleBlockModel` column (dropped in migration `RemoveOrderItemSampleBlockModel`). `WireType` and `WireUnitPrice` remain on `OrderItem` as legacy snapshot fields but **do not affect the amount formula**.
+- Print output (both dot-matrix and A4) includes a footer line: `总数量：X    总方数：Y    合计：Z`.
 
 Two management windows — 丝管理 and 样块管理 — are opened from buttons on the main-window toolbar.
 

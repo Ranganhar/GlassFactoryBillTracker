@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:GlassFactory.BillTracker.App.Converters"
         Title="订单编辑"
-        Width="1300"
+        Width="1100"
         Height="760"
         WindowStartupLocation="CenterOwner">
     <Window.Resources>
@@ -156,17 +156,6 @@
                 </DataGrid.Resources>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="型号" Binding="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Width="90" MinWidth="80" MaxWidth="95" EditingElementStyle="{StaticResource ModelEditingStyle}" />
-                    <DataGridTemplateColumn Header="样块型号" Width="120" MinWidth="110">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <ComboBox IsEditable="True"
-                                          Text="{Binding SampleBlockModel, UpdateSourceTrigger=LostFocus}"
-                                          ItemsSource="{Binding DataContext.SampleBlockModels, RelativeSource={RelativeSource AncestorType=Window}}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="丝" Binding="{Binding WireType}" IsReadOnly="True" Width="100" MinWidth="80" />
-                    <DataGridTextColumn Header="价格(参考)" Binding="{Binding WireUnitPrice, StringFormat=F0}" IsReadOnly="True" Width="80" MinWidth="70" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" />
                     <DataGridTextColumn Header="长(mm)" Binding="{Binding GlassLengthMm, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="70" MinWidth="65" MaxWidth="75" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
                     <DataGridTextColumn Header="宽(mm)" Binding="{Binding GlassWidthMm, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="70" MinWidth="65" MaxWidth="75" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />
                     <DataGridTextColumn Header="数量" Binding="{Binding Quantity, UpdateSourceTrigger=LostFocus, StringFormat=F0}" Width="62" MinWidth="58" MaxWidth="66" ElementStyle="{StaticResource RightAlignedDisplayCellStyle}" EditingElementStyle="{StaticResource IntegerEditingStyle}" />

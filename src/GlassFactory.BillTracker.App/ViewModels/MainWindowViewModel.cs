@@ -721,7 +721,7 @@ public sealed class MainWindowViewModel : ObservableObject
         var window = new WireManagementWindow
         {
             Owner = Application.Current.MainWindow,
-            DataContext = new WireManagementViewModel(_wireService, _sampleBlockService)
+            DataContext = new WireManagementViewModel(_wireService)
         };
         window.ShowDialog();
     }
@@ -731,7 +731,7 @@ public sealed class MainWindowViewModel : ObservableObject
         var window = new SampleBlockManagementWindow
         {
             Owner = Application.Current.MainWindow,
-            DataContext = new SampleBlockManagementViewModel(_sampleBlockService, _wireService)
+            DataContext = new SampleBlockManagementViewModel(_sampleBlockService)
         };
         window.ShowDialog();
     }
@@ -816,8 +816,6 @@ public sealed class MainWindowViewModel : ObservableObject
                 return;
             }
 
-            var sampleBlocks = await _sampleBlockService.GetSampleBlocksAsync();
-
             Order? existingOrder = null;
             string orderNo;
 
@@ -838,7 +836,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 orderNo = await _orderService.GenerateOrderNoAsync(DateTime.Now);
             }
 
-            var vm = new OrderEditViewModel(customerEntities, sampleBlocks, orderNo, existingOrder);
+            var vm = new OrderEditViewModel(customerEntities, orderNo, existingOrder);
             var window = new OrderEditWindow
             {
                 Owner = Application.Current.MainWindow,

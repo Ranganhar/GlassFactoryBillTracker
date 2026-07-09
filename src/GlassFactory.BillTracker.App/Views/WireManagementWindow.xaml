@@ -1,47 +1,80 @@
 <Window x:Class="GlassFactory.BillTracker.App.Views.WireManagementWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="丝管理"
-        Width="820"
-        Height="560"
-        WindowStartupLocation="CenterOwner">
+        xmlns:conv="clr-namespace:GlassFactory.BillTracker.App.Converters"
+        Title="丝管理" Width="1000" Height="620" WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <conv:PathToImageSourceConverter x:Key="PathToImageSourceConverter" />
+    </Window.Resources>
     <DockPanel Margin="10">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBox Width="220" Text="{Binding SearchKeyword, UpdateSourceTrigger=PropertyChanged}" />
-            <Button Content="搜索" Command="{Binding SearchCommand}" Margin="6,0,0,0" Width="70" />
-            <Button Content="新增" Command="{Binding NewCommand}" Margin="16,0,0,0" Width="70" />
-        </StackPanel>
+        <Border DockPanel.Dock="Top" BorderBrush="#DDD" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+            <WrapPanel>
+                <TextBlock Text="型号" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBox Width="120" Text="{Binding FilterModel, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" />
+                <TextBlock Text="价格" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBox Width="70" Text="{Binding FilterPriceMin, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Text="~" VerticalAlignment="Center" Margin="4,0" />
+                <TextBox Width="70" Text="{Binding FilterPriceMax, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" />
+                <TextBlock Text="进货时间" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <DatePicker Width="120" SelectedDate="{Binding FilterFrom}" />
+                <TextBlock Text="~" VerticalAlignment="Center" Margin="4,0" />
+                <DatePicker Width="120" SelectedDate="{Binding FilterTo}" Margin="0,0,12,0" />
+                <TextBlock Text="备注" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBox Width="120" Text="{Binding FilterNote, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0" />
+                <Button Content="查询" Command="{Binding SearchCommand}" Width="60" Margin="0,0,8,0" />
+                <Button Content="清除" Command="{Binding ClearFilterCommand}" Width="60" Margin="0,0,8,0" />
+                <Button Content="新增" Command="{Binding NewCommand}" Width="60" />
+            </WrapPanel>
+        </Border>
 
-        <Border DockPanel.Dock="Right" BorderBrush="#DDD" BorderThickness="1" Padding="10" Margin="8,0,0,0" Width="300">
+        <Border DockPanel.Dock="Right" BorderBrush="#DDD" BorderThickness="1" Padding="10" Margin="8,0,0,0" Width="320">
             <StackPanel>
                 <TextBlock Text="型号 *" Margin="0,0,0,2" />
                 <TextBox Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" MaxLength="100" Margin="0,0,0,8" />
-                <TextBlock Text="厂家" Margin="0,0,0,2" />
-                <TextBox Text="{Binding Manufacturer, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" Margin="0,0,0,8" />
                 <TextBlock Text="价格" Margin="0,0,0,2" />
-                <TextBox Text="{Binding Price}" Margin="0,0,0,8" />
+                <TextBox Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                <TextBlock Text="进货时间" Margin="0,0,0,2" />
+                <DatePicker SelectedDate="{Binding PurchaseDate}" Margin="0,0,0,8" />
                 <TextBlock Text="备注" Margin="0,0,0,2" />
-                <TextBox Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="80" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,0,0,12" />
-                <StackPanel Orientation="Horizontal">
+                <TextBox Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="60" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8" />
+                <DockPanel Margin="0,0,0,4">
+                    <TextBlock Text="附件（双击放大）" FontWeight="Bold" />
+                    <Button Content="添加图片" Command="{Binding AddImageCommand}" HorizontalAlignment="Right" Width="80" />
+                </DockPanel>
+                <ListBox x:Name="AttachmentListBox" ItemsSource="{Binding Attachments}" Height="150"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         MouseDoubleClick="AttachmentListBox_MouseDoubleClick">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="92" Margin="0,0,6,6">
+                                <Border BorderBrush="#CCC" BorderThickness="1" Padding="2">
+                                    <Image Width="84" Height="60" Stretch="UniformToFill"
+                                           Source="{Binding AbsolutePath, Converter={StaticResource PathToImageSourceConverter}}" />
+                                </Border>
+                                <Button Content="移除" Command="{Binding DataContext.RemoveImageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                     <Button Content="保存" Command="{Binding SaveCommand}" Width="90" Margin="0,0,8,0" />
                     <Button Content="删除" Command="{Binding DeleteCommand}" Width="90" />
                 </StackPanel>
-                <TextBlock Text="该丝涉及的样块" FontWeight="Bold" Margin="0,14,0,4" />
-                <ListBox ItemsSource="{Binding RelatedSampleBlocks}" DisplayMemberPath="Model" Height="140" />
             </StackPanel>
         </Border>
 
-        <DataGrid ItemsSource="{Binding Wires}"
-                  SelectedItem="{Binding SelectedWire}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  CanUserAddRows="False"
-                  SelectionMode="Single">
+        <DataGrid ItemsSource="{Binding Wires}" SelectedItem="{Binding SelectedWire}"
+                  AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="型号" Binding="{Binding Model}" Width="140" />
-                <DataGridTextColumn Header="厂家" Binding="{Binding Manufacturer}" Width="140" />
                 <DataGridTextColumn Header="价格" Binding="{Binding Price, StringFormat=F2}" Width="90" />
+                <DataGridTextColumn Header="进货时间" Binding="{Binding PurchaseDate, StringFormat=yyyy-MM-dd}" Width="110" />
                 <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*" />
+                <DataGridTextColumn Header="附件" Binding="{Binding Attachments.Count, StringFormat={}{0}张}" Width="60" />
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>
