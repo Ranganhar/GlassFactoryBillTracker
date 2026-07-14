@@ -13,7 +13,6 @@ namespace GlassFactory.BillTracker.App.Services;
 public sealed class PrintService : IPrintService
 {
     private const int NoteColumnIndex = 9;
-    private const double MinFontSize = 6d;
     private static readonly FontFamily PrintFontFamily = new("Microsoft YaHei");
     private static readonly double MeasurementPixelsPerDip = GetPixelsPerDip();
 
@@ -111,13 +110,11 @@ public sealed class PrintService : IPrintService
                 })
                 .ToList();
 
-            var fittedFontSize = FitTableFontSize(columns, sourceRows, typeface, tableWidth, tableFontSize);
-
             var columnLayout = ComputeColumnLayoutForPrint(
                 columns,
                 sourceRows,
                 typeface,
-                fittedFontSize,
+                tableFontSize,
                 MeasurementPixelsPerDip,
                 tableWidth,
                 0d,
@@ -134,7 +131,7 @@ public sealed class PrintService : IPrintService
                 columns,
                 sourceRows,
                 typeface,
-                fittedFontSize,
+                tableFontSize,
                 noteTextWidth,
                 baseTextRowHeight,
                 rowVerticalPadding,
@@ -163,7 +160,7 @@ public sealed class PrintService : IPrintService
                     page.Rows,
                     page.IncludeFooter,
                     footerHeight,
-                    fittedFontSize);
+                    tableFontSize);
                 ((IAddChild)pageContent).AddChild(fixedPage);
                 document.Pages.Add(pageContent);
             }
@@ -583,7 +580,7 @@ public sealed class PrintService : IPrintService
         var table = new Grid { Margin = new Thickness(0, 2, 0, 6) };
         var contentWidth = Math.Max(120d, pageWidth - (horizontalPadding * 2d) - tableWidthEpsilon);
         var dataTypeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-        var tableFontSize = FitTableFontSize(columns, valuesByRow, dataTypeface, contentWidth, Math.Max(8d, baseFontSize - 1d));
+        var tableFontSize = Math.Max(8d, baseFontSize - 1d);
         var columnLayout = ComputeColumnLayoutForPrint(
             columns,
             valuesByRow,
@@ -712,7 +709,7 @@ public sealed class PrintService : IPrintService
                 Text = text,
                 FontFamily = PrintFontFamily,
                 FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
-                FontSize = Math.Max(MinFontSize, fontSize),
+                FontSize = Math.Max(8d, fontSize),
                 TextAlignment = alignment,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -812,7 +809,7 @@ public sealed class PrintService : IPrintService
                         Text = text,
                         FontFamily = PrintFontFamily,
                         FontWeight = FontWeights.Bold,
-                        FontSize = Math.Max(MinFontSize, fontSize),
+                        FontSize = Math.Max(8d, fontSize),
                         HorizontalAlignment = horizontalAlignment,
                         VerticalAlignment = VerticalAlignment.Center,
                         TextAlignment = alignment,
@@ -822,46 +819,6 @@ public sealed class PrintService : IPrintService
                 }
             }
         };
-    }
-
-    // Shrinks the table font (down to MinFontSize) until the widest single note line fits the note
-    // column's available width, so a long note no longer overflows the page horizontally.
-    private static double FitTableFontSize(
-        IReadOnlyList<PrintColumnDefinition> columns,
-        IReadOnlyList<IReadOnlyDictionary<string, string>> rows,
-        Typeface typeface,
-        double availableTableWidth,
-        double startFontSize)
-    {
-        const double step = 0.5d;
-        var noteColumn = columns.First(column => column.IsNote);
-        var font = startFontSize;
-
-        while (font > MinFontSize + 0.001d)
-        {
-            var layout = ComputeColumnLayoutForPrint(
-                columns, rows, typeface, font, MeasurementPixelsPerDip, availableTableWidth, 0d, CellHorizontalInsetsDip);
-
-            var widestNoteLine = 0d;
-            foreach (var row in rows)
-            {
-                var note = row.TryGetValue(noteColumn.Key, out var value) ? value : string.Empty;
-                var lineWidth = MeasureLongestLineWidth(note, typeface, font, MeasurementPixelsPerDip);
-                if (lineWidth > widestNoteLine)
-                {
-                    widestNoteLine = lineWidth;
-                }
-            }
-
-            if (widestNoteLine <= layout.NoteTextWidth + 0.1d)
-            {
-                break;
-            }
-
-            font -= step;
-        }
-
-        return Math.Max(MinFontSize, font);
     }
 
     private static double MeasureFooterRowHeight(double baseFontSize)
