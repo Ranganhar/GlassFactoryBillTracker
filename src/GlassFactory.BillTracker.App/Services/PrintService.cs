@@ -12,7 +12,8 @@ namespace GlassFactory.BillTracker.App.Services;
 
 public sealed class PrintService : IPrintService
 {
-    private const int NoteColumnIndex = 8;
+    private const int NoteColumnIndex = 9;
+    private const double MinFontSize = 6d;
     private static readonly FontFamily PrintFontFamily = new("Microsoft YaHei");
     private static readonly double MeasurementPixelsPerDip = GetPixelsPerDip();
 
@@ -101,6 +102,7 @@ public sealed class PrintService : IPrintService
                     ["Length"] = FormatInt(item.GlassLengthMm),
                     ["Width"] = FormatInt(item.GlassWidthMm),
                     ["Quantity"] = item.Quantity.ToString(CultureInfo.InvariantCulture),
+                    ["Area"] = FormatArea(item),
                     ["UnitPrice"] = FormatInt(item.GlassUnitPricePerM2),
                     ["HoleFee"] = FormatInt(item.HoleFee),
                     ["OtherFee"] = FormatInt(item.OtherFee),
@@ -109,11 +111,13 @@ public sealed class PrintService : IPrintService
                 })
                 .ToList();
 
+            var fittedFontSize = FitTableFontSize(columns, sourceRows, typeface, tableWidth, tableFontSize);
+
             var columnLayout = ComputeColumnLayoutForPrint(
                 columns,
                 sourceRows,
                 typeface,
-                tableFontSize,
+                fittedFontSize,
                 MeasurementPixelsPerDip,
                 tableWidth,
                 0d,
@@ -130,7 +134,7 @@ public sealed class PrintService : IPrintService
                 columns,
                 sourceRows,
                 typeface,
-                tableFontSize,
+                fittedFontSize,
                 noteTextWidth,
                 baseTextRowHeight,
                 rowVerticalPadding,
@@ -159,7 +163,7 @@ public sealed class PrintService : IPrintService
                     page.Rows,
                     page.IncludeFooter,
                     footerHeight,
-                    tableFontSize);
+                    fittedFontSize);
                 ((IAddChild)pageContent).AddChild(fixedPage);
                 document.Pages.Add(pageContent);
             }
@@ -396,7 +400,7 @@ public sealed class PrintService : IPrintService
             columns,
             columnWidths,
             pageRows,
-            includeFooter ? BuildTotalsFooterText(order) : null,
+            includeFooter ? order : null,
             tableFontSize,
             tableHeaderHeight,
             footerHeight);
@@ -428,7 +432,7 @@ public sealed class PrintService : IPrintService
         IReadOnlyList<PrintColumnDefinition> columns,
         IReadOnlyList<double> columnWidths,
         IReadOnlyList<DotMatrixRowLayout> pageRows,
-        string? totalText,
+        OrderExportDto? footerOrder,
         double tableFontSize,
         double tableHeaderHeight,
         double footerHeight)
@@ -498,22 +502,10 @@ public sealed class PrintService : IPrintService
             rowIndex++;
         }
 
-        if (!string.IsNullOrWhiteSpace(totalText))
+        if (footerOrder is not null)
         {
             table.RowDefinitions.Add(new RowDefinition { Height = new GridLength(footerHeight) });
-            var totalCell = CreateTotalFooterCell(
-                totalText,
-                fontSize: tableFontSize,
-                cellWidth: columnWidths.Sum(),
-                debugContext: "DotMatrix",
-                rowIndex: rowIndex,
-                columnIndex: 0,
-                columnKey: "Total",
-                cellLeft: 0d);
-            Grid.SetRow(totalCell, rowIndex);
-            Grid.SetColumn(totalCell, 0);
-            Grid.SetColumnSpan(totalCell, columns.Count);
-            table.Children.Add(totalCell);
+            AddFooterCells(table, columns, columnWidths, footerOrder, tableFontSize, rowIndex);
         }
 
         return new Border
@@ -580,6 +572,7 @@ public sealed class PrintService : IPrintService
             ["Length"] = FormatInt(item.GlassLengthMm),
             ["Width"] = FormatInt(item.GlassWidthMm),
             ["Quantity"] = item.Quantity.ToString(CultureInfo.InvariantCulture),
+            ["Area"] = FormatArea(item),
             ["UnitPrice"] = FormatInt(item.GlassUnitPricePerM2),
             ["HoleFee"] = FormatInt(item.HoleFee),
             ["OtherFee"] = FormatInt(item.OtherFee),
@@ -589,11 +582,12 @@ public sealed class PrintService : IPrintService
 
         var table = new Grid { Margin = new Thickness(0, 2, 0, 6) };
         var contentWidth = Math.Max(120d, pageWidth - (horizontalPadding * 2d) - tableWidthEpsilon);
-        var tableFontSize = Math.Max(8d, baseFontSize - 1d);
+        var dataTypeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var tableFontSize = FitTableFontSize(columns, valuesByRow, dataTypeface, contentWidth, Math.Max(8d, baseFontSize - 1d));
         var columnLayout = ComputeColumnLayoutForPrint(
             columns,
             valuesByRow,
-            new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            dataTypeface,
             tableFontSize,
             MeasurementPixelsPerDip,
             contentWidth,
@@ -659,19 +653,7 @@ public sealed class PrintService : IPrintService
         }
 
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var totalCell = CreateTotalFooterCell(
-            BuildTotalsFooterText(order),
-            fontSize: tableFontSize,
-            cellWidth: columnWidths.Sum(),
-            debugContext: isDotMatrix ? "A4-DotMatrix" : "A4",
-            rowIndex: rowIndex,
-            columnIndex: 0,
-            columnKey: "Total",
-            cellLeft: 0d);
-        Grid.SetRow(totalCell, rowIndex);
-        Grid.SetColumn(totalCell, 0);
-        Grid.SetColumnSpan(totalCell, headers.Length);
-        table.Children.Add(totalCell);
+        AddFooterCells(table, columns, columnWidths, order, tableFontSize, rowIndex);
 
         var tableContainer = new Border
         {
@@ -730,7 +712,7 @@ public sealed class PrintService : IPrintService
                 Text = text,
                 FontFamily = PrintFontFamily,
                 FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
-                FontSize = Math.Max(8d, fontSize),
+                FontSize = Math.Max(MinFontSize, fontSize),
                 TextAlignment = alignment,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -742,31 +724,76 @@ public sealed class PrintService : IPrintService
         };
     }
 
-    private static Border CreateTotalFooterCell(
-        string totalText,
+    // Footer row aligned to columns: 总计 label under the first column, 总数量 under 数量,
+    // 总方数 under 平方, and 合计 right-aligned spanning the 金额+备注 columns (bottom-right).
+    private static void AddFooterCells(
+        Grid table,
+        IReadOnlyList<PrintColumnDefinition> columns,
+        IReadOnlyList<double> columnWidths,
+        OrderExportDto order,
         double fontSize,
-        double cellWidth,
-        string debugContext,
-        int rowIndex,
-        int columnIndex,
-        string columnKey,
-        double cellLeft)
+        int rowIndex)
     {
-        var boldTypeface = new Typeface(PrintFontFamily, FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
-        var textMaxWidth = Math.Max(8d, cellWidth - CellHorizontalInsetsDip);
-        var measuredWidth = Math.Min(textMaxWidth, MeasureTextWidth(totalText, boldTypeface, Math.Max(8d, fontSize), MeasurementPixelsPerDip));
+        var items = (order.Items ?? Array.Empty<OrderExportItemDto>()).Where(i => i is not null).ToList();
+        var totalQty = items.Sum(i => i.Quantity).ToString(CultureInfo.InvariantCulture);
+        var totalArea = items
+            .Sum(i => OrderAmountCalculator.CalculateAreaM2Rounded(i.GlassLengthMm, i.GlassWidthMm))
+            .ToString("F2", CultureInfo.InvariantCulture);
+        var totalAmount = $"合计：{FormatMoney2(order.TotalAmount)}";
 
-        TraceRenderCell(
-            debugContext,
-            rowIndex,
-            columnIndex,
-            columnKey,
-            cellLeft,
-            cellWidth,
-            textMaxWidth,
-            TextTrimming.None,
-            new Thickness(0d),
-            clippingEnabled: false);
+        var quantityIndex = IndexOfColumn(columns, "Quantity");
+        var areaIndex = IndexOfColumn(columns, "Area");
+        var amountIndex = IndexOfColumn(columns, "Amount");
+        var noteIndex = IndexOfColumn(columns, "Note");
+
+        for (var col = 0; col < amountIndex; col++)
+        {
+            var text = col == 0 ? "总计"
+                : col == quantityIndex ? totalQty
+                : col == areaIndex ? totalArea
+                : string.Empty;
+            var alignment = (col == quantityIndex || col == areaIndex) ? TextAlignment.Right : TextAlignment.Left;
+            var cell = CreateFooterCell(text, fontSize, columnWidths[col], alignment);
+            Grid.SetRow(cell, rowIndex);
+            Grid.SetColumn(cell, col);
+            table.Children.Add(cell);
+        }
+
+        var spanWidth = 0d;
+        for (var col = amountIndex; col <= noteIndex; col++)
+        {
+            spanWidth += columnWidths[col];
+        }
+
+        var amountCell = CreateFooterCell(totalAmount, fontSize, spanWidth, TextAlignment.Right);
+        Grid.SetRow(amountCell, rowIndex);
+        Grid.SetColumn(amountCell, amountIndex);
+        Grid.SetColumnSpan(amountCell, noteIndex - amountIndex + 1);
+        table.Children.Add(amountCell);
+    }
+
+    private static int IndexOfColumn(IReadOnlyList<PrintColumnDefinition> columns, string key)
+    {
+        for (var i = 0; i < columns.Count; i++)
+        {
+            if (string.Equals(columns[i].Key, key, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static Border CreateFooterCell(string text, double fontSize, double cellWidth, TextAlignment alignment)
+    {
+        var textMaxWidth = Math.Max(8d, cellWidth - CellHorizontalInsetsDip);
+        var horizontalAlignment = alignment switch
+        {
+            TextAlignment.Right => HorizontalAlignment.Right,
+            TextAlignment.Center => HorizontalAlignment.Center,
+            _ => HorizontalAlignment.Left
+        };
 
         return new Border
         {
@@ -782,20 +809,59 @@ public sealed class PrintService : IPrintService
                 {
                     new TextBlock
                     {
-                        Text = totalText,
+                        Text = text,
                         FontFamily = PrintFontFamily,
                         FontWeight = FontWeights.Bold,
-                        FontSize = Math.Max(8d, fontSize),
-                        Width = measuredWidth,
-                        HorizontalAlignment = HorizontalAlignment.Right,
+                        FontSize = Math.Max(MinFontSize, fontSize),
+                        HorizontalAlignment = horizontalAlignment,
                         VerticalAlignment = VerticalAlignment.Center,
-                        TextAlignment = TextAlignment.Right,
+                        TextAlignment = alignment,
                         TextWrapping = TextWrapping.NoWrap,
                         TextTrimming = TextTrimming.None
                     }
                 }
             }
         };
+    }
+
+    // Shrinks the table font (down to MinFontSize) until the widest single note line fits the note
+    // column's available width, so a long note no longer overflows the page horizontally.
+    private static double FitTableFontSize(
+        IReadOnlyList<PrintColumnDefinition> columns,
+        IReadOnlyList<IReadOnlyDictionary<string, string>> rows,
+        Typeface typeface,
+        double availableTableWidth,
+        double startFontSize)
+    {
+        const double step = 0.5d;
+        var noteColumn = columns.First(column => column.IsNote);
+        var font = startFontSize;
+
+        while (font > MinFontSize + 0.001d)
+        {
+            var layout = ComputeColumnLayoutForPrint(
+                columns, rows, typeface, font, MeasurementPixelsPerDip, availableTableWidth, 0d, CellHorizontalInsetsDip);
+
+            var widestNoteLine = 0d;
+            foreach (var row in rows)
+            {
+                var note = row.TryGetValue(noteColumn.Key, out var value) ? value : string.Empty;
+                var lineWidth = MeasureLongestLineWidth(note, typeface, font, MeasurementPixelsPerDip);
+                if (lineWidth > widestNoteLine)
+                {
+                    widestNoteLine = lineWidth;
+                }
+            }
+
+            if (widestNoteLine <= layout.NoteTextWidth + 0.1d)
+            {
+                break;
+            }
+
+            font -= step;
+        }
+
+        return Math.Max(MinFontSize, font);
     }
 
     private static double MeasureFooterRowHeight(double baseFontSize)
@@ -969,6 +1035,7 @@ public sealed class PrintService : IPrintService
             new PrintColumnDefinition { Key = "Length", Title = "长(mm)", MinWidth = 28d, MaxWidth = double.MaxValue, IsNote = false },
             new PrintColumnDefinition { Key = "Width", Title = "宽(mm)", MinWidth = 28d, MaxWidth = double.MaxValue, IsNote = false },
             new PrintColumnDefinition { Key = "Quantity", Title = "数量", MinWidth = 26d, MaxWidth = double.MaxValue, IsNote = false },
+            new PrintColumnDefinition { Key = "Area", Title = "平方(㎡)", MinWidth = 34d, MaxWidth = double.MaxValue, IsNote = false },
             new PrintColumnDefinition { Key = "UnitPrice", Title = "单价(元/㎡)", MinWidth = 40d, MaxWidth = double.MaxValue, IsNote = false },
             new PrintColumnDefinition { Key = "HoleFee", Title = "打孔费", MinWidth = 40d, MaxWidth = double.MaxValue, IsNote = false },
             new PrintColumnDefinition { Key = "OtherFee", Title = "其他费用", MinWidth = 40d, MaxWidth = double.MaxValue, IsNote = false },
@@ -1027,12 +1094,11 @@ public sealed class PrintService : IPrintService
         return OrderAmountCalculator.RoundAmount(value).ToString("F0", CultureInfo.InvariantCulture);
     }
 
-    private static string BuildTotalsFooterText(OrderExportDto order)
+    private static string FormatArea(OrderExportItemDto item)
     {
-        var items = (order.Items ?? Array.Empty<OrderExportItemDto>()).Where(i => i is not null).ToList();
-        var totalQty = items.Sum(i => i.Quantity);
-        var totalArea = items.Sum(i => OrderAmountCalculator.CalculateAreaM2Rounded(i.GlassLengthMm, i.GlassWidthMm));
-        return $"总数量：{totalQty}    总方数：{totalArea.ToString("F2", CultureInfo.InvariantCulture)}    合计：{FormatMoney2(order.TotalAmount)}";
+        return OrderAmountCalculator
+            .CalculateAreaM2Rounded(item.GlassLengthMm, item.GlassWidthMm)
+            .ToString("F2", CultureInfo.InvariantCulture);
     }
 
     private static double MmToDip(double mm)
