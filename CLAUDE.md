@@ -78,6 +78,7 @@ On first run, `DataDirectoryService` prompts (WinForms `FolderBrowserDialog`) fo
 `OrderAmountCalculator` (Domain) is the single source of truth for money math, and **the current code does NOT match the README's stated rules** (README §5 describes an older 4-decimal / `WireUnitPrice`-in-line-amount design). Trust the code, and treat the tests in `OrderAmountCalculatorTests` as the real spec:
 
 - Area (㎡) = `(LengthMm / 1000) * (WidthMm / 1000)`.
+- Displayed line area / square count (㎡) = `Area * Quantity`; order and print area totals use this quantity-adjusted value.
 - Glass cost = `Area * Quantity * GlassUnitPricePerM2`.
 - Line amount = `GlassCost + HoleFee + OtherFee`. Note `WireUnitPrice` is stored on `OrderItem` but is **not** part of the amount.
 - `RoundAmount` rounds to **0 decimals** (whole yuan) `AwayFromZero`; `Round` rounds to 2. Order total = sum of per-line rounded amounts, rounded again.

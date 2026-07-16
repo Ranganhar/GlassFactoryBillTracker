@@ -232,7 +232,7 @@ public sealed class ExportService : IExportService
         var row = 2;
         foreach (var item in items)
         {
-            var area = OrderAmountCalculator.CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm);
+            var area = OrderAmountCalculator.CalculateLineAreaM2(item.GlassLengthMm, item.GlassWidthMm, item.Quantity);
             var glassCost = OrderAmountCalculator.CalculateGlassCost(item);
             var amount = OrderAmountCalculator.RoundAmount(item.Amount);
 

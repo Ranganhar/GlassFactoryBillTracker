@@ -96,6 +96,7 @@ public class ExportServiceTests
         Assert.Equal("宽(mm) GlassWidthMm", orderItems.Cell(1, 4).GetString());
         Assert.Equal("数量 Quantity", orderItems.Cell(1, 5).GetString());
         Assert.Equal("玻璃单价(元/㎡) GlassUnitPricePerM2", orderItems.Cell(1, 6).GetString());
+        Assert.Equal(4m, orderItems.Cell(2, 7).GetValue<decimal>());
 
         Assert.NotNull(workbook.Worksheet("ByCustomer"));
         var byCustomer = workbook.Worksheet("ByCustomer");

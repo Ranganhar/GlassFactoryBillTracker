@@ -128,11 +128,11 @@ public class OrderAmountCalculatorTests
     {
         var items = new[]
         {
-            new OrderItem { GlassLengthMm = 1000m, GlassWidthMm = 1000m, Quantity = 2 }, // 1.00 m^2
-            new OrderItem { GlassLengthMm = 500m, GlassWidthMm = 400m, Quantity = 3 }    // 0.20 m^2
+            new OrderItem { GlassLengthMm = 1000m, GlassWidthMm = 1000m, Quantity = 2 }, // 2.00 m^2
+            new OrderItem { GlassLengthMm = 500m, GlassWidthMm = 400m, Quantity = 3 }    // 0.60 m^2
         };
 
-        Assert.Equal(1.20m, OrderAmountCalculator.CalculateTotalAreaM2(items));
+        Assert.Equal(2.60m, OrderAmountCalculator.CalculateTotalAreaM2(items));
         Assert.Equal(5, OrderAmountCalculator.CalculateTotalQuantity(items));
     }
 }
