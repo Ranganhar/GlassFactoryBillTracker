@@ -14,9 +14,22 @@ public static class OrderAmountCalculator
         return Math.Round(CalculateAreaM2(glassLengthMm, glassWidthMm), 2, MidpointRounding.AwayFromZero);
     }
 
+    public static decimal CalculateLineAreaM2(decimal glassLengthMm, decimal glassWidthMm, int quantity)
+    {
+        return CalculateAreaM2(glassLengthMm, glassWidthMm) * quantity;
+    }
+
+    public static decimal CalculateLineAreaM2Rounded(decimal glassLengthMm, decimal glassWidthMm, int quantity)
+    {
+        return Math.Round(
+            CalculateLineAreaM2(glassLengthMm, glassWidthMm, quantity),
+            2,
+            MidpointRounding.AwayFromZero);
+    }
+
     public static decimal CalculateTotalAreaM2(IEnumerable<OrderItem> items)
     {
-        var sum = items.Sum(item => CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm));
+        var sum = items.Sum(item => CalculateLineAreaM2(item.GlassLengthMm, item.GlassWidthMm, item.Quantity));
         return Math.Round(sum, 2, MidpointRounding.AwayFromZero);
     }
 
@@ -27,8 +40,8 @@ public static class OrderAmountCalculator
 
     public static decimal CalculateGlassCost(OrderItem item)
     {
-        var areaM2 = CalculateAreaM2(item.GlassLengthMm, item.GlassWidthMm);
-        return areaM2 * item.Quantity * item.GlassUnitPricePerM2;
+        var lineAreaM2 = CalculateLineAreaM2(item.GlassLengthMm, item.GlassWidthMm, item.Quantity);
+        return lineAreaM2 * item.GlassUnitPricePerM2;
     }
 
     public static decimal CalculateRawAmount(OrderItem item)

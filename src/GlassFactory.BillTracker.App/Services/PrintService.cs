@@ -734,7 +734,7 @@ public sealed class PrintService : IPrintService
         var items = (order.Items ?? Array.Empty<OrderExportItemDto>()).Where(i => i is not null).ToList();
         var totalQty = items.Sum(i => i.Quantity).ToString(CultureInfo.InvariantCulture);
         var totalArea = items
-            .Sum(i => OrderAmountCalculator.CalculateAreaM2Rounded(i.GlassLengthMm, i.GlassWidthMm))
+            .Sum(i => OrderAmountCalculator.CalculateLineAreaM2Rounded(i.GlassLengthMm, i.GlassWidthMm, i.Quantity))
             .ToString("F2", CultureInfo.InvariantCulture);
         var totalAmount = $"合计：{FormatMoney2(order.TotalAmount)}";
 
@@ -1054,7 +1054,7 @@ public sealed class PrintService : IPrintService
     private static string FormatArea(OrderExportItemDto item)
     {
         return OrderAmountCalculator
-            .CalculateAreaM2Rounded(item.GlassLengthMm, item.GlassWidthMm)
+            .CalculateLineAreaM2Rounded(item.GlassLengthMm, item.GlassWidthMm, item.Quantity)
             .ToString("F2", CultureInfo.InvariantCulture);
     }
 
